@@ -32,7 +32,7 @@ export const setupAxiosInterceptors = (callback) => {
 
 const api = axios.create({
   baseURL: conf.baseUrl,
-  timeout: 50000,
+  timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
   withCredentials: true,
 });
