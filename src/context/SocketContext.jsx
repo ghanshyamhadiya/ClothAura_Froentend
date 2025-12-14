@@ -28,16 +28,17 @@ export const SocketProvider = ({ children }) => {
                 // Get token from localStorage if available
                 const token = localStorage.getItem('accessToken');
                 
-                console.log('🔌 Initializing socket connection...');
+                console.log('🔌 Initializing socket connection...', token ? 'with token' : 'without token');
                 
-                // Initialize socket connection
+                // Initialize socket connection - allow without token
                 await socketManager.initialize(token);
                 
                 console.log('✅ Socket initialized successfully');
                 setSocketInitialized(true);
                 setSocketError(null);
             } catch (error) {
-                console.error('❌ Failed to initialize socket:', error);
+                console.error('❌ Socket initialization error:', error);
+                // Don't fail if socket can't connect - app should still work
                 setSocketError(error.message);
                 setSocketInitialized(true); // Still set to true to render app
             }
@@ -60,9 +61,13 @@ export const SocketProvider = ({ children }) => {
             setIsAuthenticated(true);
         };
 
-        const handleAuthError = () => {
-            console.log('🚫 Socket authentication failed');
+        const handleAuthError = (event) => {
+            console.log('🚫 Socket authentication failed:', event?.detail);
             setIsAuthenticated(false);
+            // Don't show error for NO_TOKEN when user is not logged in
+            if (event?.detail?.code !== 'NO_TOKEN') {
+                console.error('Socket auth error:', event?.detail);
+            }
         };
 
         // Initialize socket
@@ -74,7 +79,7 @@ export const SocketProvider = ({ children }) => {
         
         // Listen to custom auth events
         const handleSocketAuth = (event) => handleAuthenticated(event.detail);
-        const handleSocketAuthError = (event) => handleAuthError(event.detail);
+        const handleSocketAuthError = (event) => handleAuthError(event);
         
         window.addEventListener('socket:authenticated', handleSocketAuth);
         window.addEventListener('socket:authError', handleSocketAuthError);
@@ -90,7 +95,6 @@ export const SocketProvider = ({ children }) => {
             socketManager.off('disconnect', handleDisconnect);
             window.removeEventListener('socket:authenticated', handleSocketAuth);
             window.removeEventListener('socket:authError', handleSocketAuthError);
-            // Don't cleanup socketManager here as other components might need it
         };
     }, [initializationAttempted]);
 
@@ -126,10 +130,8 @@ export const SocketProvider = ({ children }) => {
     };
 
     // Show minimal loading screen only very briefly
-    if (!socketInitialized && !socketError) {
-        return (
-            <Loading />
-        );
+    if (!socketInitialized) {
+        return <Loading />;
     }
 
     return (

@@ -16,6 +16,8 @@ import { useCartWishlist } from '../../context/CartWhislistContext';
 import ProductReviews from '../review/ProductReviews';
 import { useAuth } from '../../context/AuthContext';
 import { useReview } from '../../context/ReviewContext';
+import { toastService } from '../../services/toastService';
+import { useAuthModel } from '../../context/AuthModelContext';
 
 const paymentMethodIcons = {
   cod: { icon: Truck, label: 'Cash on Delivery' },
@@ -26,6 +28,7 @@ const paymentMethodIcons = {
 
 function ProductDetails() {
   const { id } = useParams();
+  const { openModel } = useAuthModel();
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
   const [product, setProduct] = useState(null);
@@ -50,8 +53,10 @@ function ProductDetails() {
   const images = selectedVariant?.images?.map(img => img.url) || [];
   const inStock = selectedSize?.stock > 0;
   const maxQty = selectedSize?.stock || 1;
-  const inCart = isInCart(id, selectedVariant?._id, selectedSize?._id);
-  const cartItem = getCartItem(id, selectedVariant?._id, selectedSize?._id);
+
+  // Check cart/wishlist only if authenticated
+  const inCart = isAuthenticated ? isInCart(id, selectedVariant?._id, selectedSize?._id) : false;
+  const cartItem = isAuthenticated ? getCartItem(id, selectedVariant?._id, selectedSize?._id) : null;
 
   const rating = productStats?.averageRating || 0;
   const totalReviews = productStats?.totalReviews || 0;
@@ -63,9 +68,12 @@ function ProductDetails() {
       try {
         setLoading(true);
         const data = await getProductById(id);
-        console.log(data)
+        console.log(data);
         setProduct(data);
-        setIsWishlisted(isInWishlist(id));
+        // Only check wishlist if authenticated
+        if (isAuthenticated) {
+          setIsWishlisted(isInWishlist(id));
+        }
       } catch (err) {
         setError("Product not found");
       } finally {
@@ -73,13 +81,13 @@ function ProductDetails() {
       }
     };
     if (id) fetchProduct();
-  }, [id, isInWishlist]);
+  }, [id, isAuthenticated]);
 
   useEffect(() => {
     if (id) {
       fetchProductReviews(id);
     }
-    
+
     return () => {
       resetProductStats();
     };
@@ -89,7 +97,9 @@ function ProductDetails() {
     const handleUpdate = (updated) => {
       if (updated._id === id) {
         setProduct(updated);
-        setIsWishlisted(isInWishlist(id));
+        if (isAuthenticated) {
+          setIsWishlisted(isInWishlist(id));
+        }
       }
     };
     const handleDelete = (deletedId) => {
@@ -101,7 +111,7 @@ function ProductDetails() {
       offProductUpdate(handleUpdate);
       offProductDelete(handleDelete);
     };
-  }, [id, navigate, isInWishlist]);
+  }, [id, navigate, isAuthenticated]);
 
   useEffect(() => {
     if (selectedVariant?.sizes) {
@@ -110,7 +120,19 @@ function ProductDetails() {
     }
   }, [selectedColorIndex, selectedVariant]);
 
+
+  const promptLoginFor = (intent, productId) => {
+    openModel('login', { intent, fromPath: `/product/${productId}` });
+  };
+
+
   const handleAddToCart = async () => {
+    // Check authentication first
+    if (!isAuthenticated) {
+      promptLoginFor({ action: 'add-to-cart', productId: id });
+      return;
+    }
+
     if (!selectedSize) {
       setShowSizeError(true);
       setTimeout(() => setShowSizeError(false), 3000);
@@ -128,11 +150,19 @@ function ProductDetails() {
   };
 
   const toggleWishlist = async () => {
+    // Check authentication first
+    if (!isAuthenticated) {
+      promptLoginFor({ action: 'add-to-wishlist', productId: id });
+      return;
+    }
+
     try {
       if (isWishlisted) await removeFromWishlist(id);
       else await addToWishlist(id);
       setIsWishlisted(!isWishlisted);
-    } catch (err) { /* Handle error silently */ }
+    } catch (err) {
+      console.error('Wishlist error:', err);
+    }
   };
 
   const handleShare = () => {
@@ -140,7 +170,7 @@ function ProductDetails() {
       navigator.share({ title: product.name, url: window.location.href });
     } else {
       navigator.clipboard.writeText(window.location.href);
-      alert("Link copied!");
+      toastService.success("Link copied to clipboard!");
     }
   };
 
@@ -383,6 +413,20 @@ function ProductDetails() {
                 <Heart size={20} className={isWishlisted ? 'fill-red-500 text-red-500' : 'text-gray-600'} />
               </motion.button>
             </div>
+
+            {!isAuthenticated && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-800">
+                  <button
+                    onClick={() => openModel('login', { state: { from: `/product/${id}` } })}
+                    className="font-semibold underline hover:text-blue-900"
+                  >
+                    Login
+                  </button>
+                  {' '}to add items to cart and wishlist
+                </p>
+              </div>
+            )}
 
             <div className="space-y-4 py-6 border-t border-gray-200">
               <div className="flex items-center gap-3">

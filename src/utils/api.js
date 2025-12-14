@@ -2,10 +2,8 @@ import axios from 'axios';
 import conf from '../config/config';
 import { toastService } from '../services/toastService';
 
-// In-memory token
 let currentAccessToken = null;
 
-// Load token from localStorage on app start
 export const loadToken = () => {
   const token = localStorage.getItem('accessToken');
   if (token) {
@@ -30,17 +28,32 @@ export const setupAxiosInterceptors = (callback) => {
   checkBackendStatus = callback;
 };
 
+const PUBLIC_ENDPOINTS = [
+  '/login',
+  '/register',
+  '/refresh-token',
+  '/health',
+  '/review/product',
+  '/api/products/public',
+  '/api/review/product',
+  '/email-verification'
+];
+
+const isPublicEndpoint = (url) => {
+  if (!url) return false;
+  return PUBLIC_ENDPOINTS.some(endpoint => url.includes(endpoint));
+};
+
 const api = axios.create({
   baseURL: conf.baseUrl,
-  timeout: 50000,
+  timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
   withCredentials: true,
 });
 
-// Request interceptor — always use currentAccessToken
 api.interceptors.request.use(
   (config) => {
-    if (currentAccessToken) {
+    if (currentAccessToken && !isPublicEndpoint(config.url)) {
       config.headers.Authorization = `Bearer ${currentAccessToken}`;
     }
     return config;
@@ -48,12 +61,12 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor
 api.interceptors.response.use(
   (response) => {
     if (response.data?.accessToken) {
       currentAccessToken = response.data.accessToken;
-      localStorage.setItem('accessToken', currentAccessToken); // Keep in sync
+      localStorage.setItem('accessToken', currentAccessToken);
+      localStorage.setItem('wasLoggedIn', 'true');
     }
     return response;
   },
@@ -66,7 +79,12 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    if (isPublicEndpoint(originalRequest.url)) {
+      return Promise.reject(error);
+    }
+
     if (error.response.status === 401 && !originalRequest._retry) {
+      
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -84,19 +102,32 @@ api.interceptors.response.use(
           withCredentials: true
         });
 
-        if (!data.accessToken) throw new Error("No token");
+        if (!data.accessToken) throw new Error("No token received");
 
         currentAccessToken = data.accessToken;
-        localStorage.setItem('accessToken', currentAccessToken); // Sync
+        localStorage.setItem('accessToken', currentAccessToken);
+        
         processQueue(null, currentAccessToken);
+        
         originalRequest.headers.Authorization = `Bearer ${currentAccessToken}`;
         return api(originalRequest);
+        
       } catch (refreshError) {
         processQueue(refreshError, null);
+        
         currentAccessToken = null;
         localStorage.removeItem('accessToken');
-        toastService.error('Session expired. Logging out...');
-        setTimeout(() => window.location.href = '/login', 1000);
+        
+        const wasLoggedIn = localStorage.getItem('wasLoggedIn');
+        if (wasLoggedIn === 'true') {
+          toastService.error('Session expired. Please login again');
+          localStorage.removeItem('wasLoggedIn');
+          
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 1000);
+        }
+        
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
@@ -104,7 +135,10 @@ api.interceptors.response.use(
     }
 
     const msg = error.response?.data?.message || 'Request failed';
-    if (!originalRequest.url?.includes('/health')) {
+    
+    if (!originalRequest.url?.includes('/health') && 
+        !isPublicEndpoint(originalRequest.url) &&
+        error.response?.status !== 401) {
       toastService.error(msg);
     }
 

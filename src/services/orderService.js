@@ -16,20 +16,30 @@ export const orderService = {
     getDashboardOrders: async (params = {}) => {
         try {
             const queryParams = new URLSearchParams();
-            
+
             if (params.page) queryParams.append('page', params.page);
             if (params.limit) queryParams.append('limit', params.limit);
             if (params.status) queryParams.append('status', params.status);
             if (params.sortBy) queryParams.append('sortBy', params.sortBy);
             if (params.order) queryParams.append('order', params.order);
-            
+
             const queryString = queryParams.toString();
             const url = `/orders/dashboard${queryString ? `?${queryString}` : ''}`;
-            
+
             const response = await api.get(url);
             return response.data;
         } catch (error) {
             console.error('Error fetching dashboard orders:', error);
+            throw error;
+        }
+    },
+
+    getOwnerAnalytics: async () => {
+        try {
+            const response = await api.get('/orders/admin/owner-analytics');
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching owner analytics:', error);
             throw error;
         }
     },

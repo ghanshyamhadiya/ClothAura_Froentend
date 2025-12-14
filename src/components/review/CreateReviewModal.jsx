@@ -2,221 +2,220 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Star, Upload, X, Video, Send } from 'lucide-react';
 import { useReview } from '../../context/ReviewContext';
-import { useAuth } from '../../context/AuthContext'; // Added useAuth for context in the modal
+import { useAuth } from '../../context/AuthContext';
 
-// Modal Backdrop Variants
-const backdropVariants = {
+const backdrop = {
   hidden: { opacity: 0 },
   visible: { opacity: 1 },
 };
 
-// Modal Variants (Scale-up from center)
-const modalVariants = {
-  hidden: { y: "100vh", opacity: 0, scale: 0.8 },
+const modal = {
+  hidden: { y: '100vh', opacity: 0 },
   visible: {
-    y: "0",
+    y: 0,
     opacity: 1,
-    scale: 1,
-    transition: { type: "spring", damping: 20, stiffness: 300 }
+    transition: { type: 'spring', damping: 30, stiffness: 300 },
   },
-  exit: { y: "100vh", opacity: 0, scale: 0.8 }
+  exit: { y: '100vh', opacity: 0 },
 };
 
-const CreateReviewModal = ({ productId, isOpen, onClose }) => {
-  const { user } = useAuth(); // Get user for display/context
-  const { addReview, loading } = useReview();
-  const [rating, setRating] = useState(5);
-  const [content, setContent] = useState('');
+const CreateReviewModal = ({ productId, isOpen, onClose, initialReview }) => {
+  const { user } = useAuth();
+  const { addReview, editReview, loading } = useReview();
+
+  const [rating, setRating] = useState(initialReview?.rating || 5);
+  const [content, setContent] = useState(initialReview?.content || '');
   const [files, setFiles] = useState([]);
   const [previews, setPreviews] = useState([]);
   const fileInputRef = useRef();
 
-  // Reset state when modal opens/closes
   useEffect(() => {
-    if (!isOpen) {
-      // Clean up object URLs when modal is closed
-      previews.forEach(p => URL.revokeObjectURL(p.url));
-      setRating(5);
-      setContent('');
-      setFiles([]);
-      setPreviews([]);
+    if (isOpen && initialReview) {
+      setRating(initialReview.rating);
+      setContent(initialReview.content);
+      // Note: Editing existing media is not supported in this version
     }
-  }, [isOpen]);
+  }, [isOpen, initialReview]);
+
+  useEffect(() => {
+    return () => previews.forEach(p => URL.revokeObjectURL(p.url));
+  }, [previews]);
 
   const handleFileChange = (e) => {
-    const selected = Array.from(e.target.files).slice(0, 5 - files.length);
-    const newPreviews = selected.map(file => ({
+    const newFiles = Array.from(e.target.files).slice(0, 5 - files.length);
+    const newPreviews = newFiles.map(file => ({
       url: URL.createObjectURL(file),
       type: file.type.startsWith('video') ? 'video' : 'image',
-      file
+      file,
     }));
-    setFiles(prev => [...prev, ...selected]);
+    setFiles(prev => [...prev, ...newFiles]);
     setPreviews(prev => [...prev, ...newPreviews]);
   };
 
-  const removeFile = (i) => {
+  const removePreview = (i) => {
     URL.revokeObjectURL(previews[i].url);
-    setFiles(f => f.filter((_, idx) => idx !== i));
-    setPreviews(p => p.filter((_, idx) => idx !== i));
+    setFiles(prev => prev.filter((_, idx) => idx !== i));
+    setPreviews(prev => prev.filter((_, idx) => idx !== i));
   };
 
   const submit = async () => {
-    if (!content.trim()) return;
+    if (!content.trim() || rating < 1) return;
+
     const formData = new FormData();
     formData.append('content', content);
     formData.append('rating', rating);
     formData.append('productId', productId);
-    files.forEach(f => formData.append('media', f));
+    files.forEach(file => formData.append('media', file));
 
-    await addReview(formData);
-    onClose(); // Close on successful submission
+    if (initialReview) {
+      await editReview(initialReview._id, formData);
+    } else {
+      await addReview(formData);
+    }
+    onClose();
   };
 
   return (
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8"
-          variants={backdropVariants}
+          className="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
+          variants={backdrop}
           initial="hidden"
           animate="visible"
           exit="hidden"
-          // 🛑 CRITICAL CHANGE: Removed onClick={onClose} here
         >
-          {/* Backdrop Blur - Now just visual, no click handler */}
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/40" onClick={onClose} />
 
-          {/* Modal Content */}
+          {/* Modal */}
           <motion.div
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto p-6 sm:p-8 relative"
-            variants={modalVariants}
-            onClick={e => e.stopPropagation()} // Keep this to prevent event propagation to the (now passive) backdrop
+            className="relative bg-white w-full max-w-2xl rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[95vh] overflow-y-auto"
+            variants={modal}
+            onClick={e => e.stopPropagation()}
           >
-            {/* Close Button - This is the ONLY element that calls onClose */}
+            {/* Handle Bar (Mobile) */}
+            <div className="sm:hidden absolute top-3 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-gray-300 rounded-full" />
+
+            {/* Close Button */}
             <button
               onClick={onClose}
-              className="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-100 transition"
-              aria-label="Close review form"
+              className="absolute top-5 right-5 p-2 hover:bg-gray-100 rounded-full transition"
             >
-              <X size={24} className="text-gray-600" />
+              <X size={24} className="text-gray-700" />
             </button>
 
-            <h3 className="text-3xl font-bold mb-8 text-center">Share Your Experience</h3>
-            
-            {/* Rating Section */}
-            <div className="text-center mb-8">
-              <p className="text-lg font-medium mb-3">Your Rating:</p>
-              <div className="flex justify-center gap-3">
-                {[1, 2, 3, 4, 5].map(n => (
-                  <Star
-                    key={n}
-                    size={36}
-                    className={`cursor-pointer transition-all duration-200 ${
-                      n <= rating 
-                        ? 'fill-yellow-500 text-yellow-500 scale-110' 
-                        : 'text-gray-300'
-                    }`}
-                    onClick={() => setRating(n)}
-                    // whileHover={{ scale: 1.2 }}
-                  />
-                ))}
+            <div className="p-6 sm:p-10">
+              <h3 className="text-2xl sm:text-3xl font-bold text-center mb-8">
+                {initialReview ? 'Edit Your Review' : 'Write a Review'}
+              </h3>
+
+              {/* Rating */}
+              <div className="text-center mb-10">
+                <p className="text-lg font-medium mb-4">Rate this product</p>
+                <div className="flex justify-center gap-4">
+                  {[1, 2, 3, 4, 5].map(n => (
+                    <motion.div
+                      key={n}
+                      whileHover={{ scale: 1.2 }}
+                      whileTap={{ scale: 0.9 }}
+                    >
+                      <Star
+                        size={44}
+                        onClick={() => setRating(n)}
+                        className="cursor-pointer transition-all"
+                        fill={n <= rating ? 'black' : 'none'}
+                        stroke={n <= rating ? 'black' : '#9ca3af'}
+                      />
+                    </motion.div>
+                  ))}
+                </div>
               </div>
-            </div>
 
-            {/* Review Text Area */}
-            <textarea
-              value={content}
-              onChange={e => setContent(e.target.value)}
-              placeholder="What did you love (or didn’t)? Be detailed and helpful..."
-              className="w-full p-4 text-base bg-gray-50 border-2 border-gray-200 focus:border-black rounded-xl outline-none resize-none transition-colors"
-              rows={5}
-            />
-
-            {/* Upload Area */}
-            <div className="mt-6">
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept="image/*,video/*"
-                onChange={handleFileChange}
-                className="hidden"
+              {/* Text */}
+              <textarea
+                value={content}
+                onChange={e => setContent(e.target.value)}
+                placeholder="Share your experience... What did you like or dislike?"
+                className="w-full p-5 text-base bg-gray-50 border border-gray-300 rounded-2xl focus:border-black focus:outline-none resize-none transition-colors"
+                rows={6}
               />
-              <motion.button
-                onClick={() => fileInputRef.current.click()}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                disabled={files.length >= 5}
-                className="w-full inline-flex items-center justify-center gap-3 px-6 py-3 border-2 border-dashed border-gray-300 text-gray-700 rounded-xl hover:border-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Upload size={20} />
-                <span className="font-medium">
-                  {files.length > 0 
-                    ? `Upload Media (${files.length} / 5 attached)` 
-                    : 'Add up to 5 photos or videos'
-                  }
-                </span>
-              </motion.button>
 
-              {/* Preview Grid */}
-              <AnimatePresence>
+              {/* Upload */}
+              <div className="mt-6">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept="image/*,video/*"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => fileInputRef.current.click()}
+                  disabled={files.length >= 5}
+                  className="w-full py-4 border-2 border-dashed border-gray-300 rounded-2xl flex items-center justify-center gap-3 text-gray-700 hover:border-black transition disabled:opacity-50"
+                >
+                  <Upload size={22} />
+                  <span className="font-medium">
+                    {files.length > 0
+                      ? `${files.length}/5 media attached`
+                      : 'Add photos or videos (up to 5)'}
+                  </span>
+                </motion.button>
+
+                {/* Previews */}
                 {previews.length > 0 && (
                   <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="mt-4 flex flex-wrap gap-3 justify-center"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-5 grid grid-cols-5 gap-3"
                   >
                     {previews.map((p, i) => (
                       <motion.div
-                        key={p.url}
+                        key={i}
                         layout
-                        initial={{ scale: 0.8, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        exit={{ scale: 0.8, opacity: 0 }}
-                        className="relative group"
+                        initial={{ scale: 0.8 }}
+                        animate={{ scale: 1 }}
+                        className="relative group aspect-square rounded-lg overflow-hidden border"
                       >
                         {p.type === 'image' ? (
-                          <img
-                            src={p.url}
-                            alt="preview"
-                            className="w-24 h-24 object-cover rounded-lg shadow-md border"
-                          />
+                          <img src={p.url} alt="preview" className="w-full h-full object-cover" />
                         ) : (
-                          <div className="w-24 h-24 bg-gray-100 rounded-lg flex items-center justify-center border">
-                            <Video size={28} className="text-gray-500" />
-                            <span className="absolute bottom-1 right-1 text-xs bg-black/50 text-white px-1 rounded">Video</span>
+                          <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                            <Video size={32} className="text-gray-500" />
                           </div>
                         )}
-                        <motion.button
-                          onClick={() => removeFile(i)}
-                          whileHover={{ scale: 1.1 }}
-                          className="absolute -top-2 -right-2 bg-black text-white rounded-full p-1 shadow-lg transition"
+                        <button
+                          onClick={() => removePreview(i)}
+                          className="absolute top-1 right-1 bg-black/70 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition"
                         >
                           <X size={14} />
-                        </motion.button>
+                        </button>
                       </motion.div>
                     ))}
                   </motion.div>
                 )}
-              </AnimatePresence>
-            </div>
+              </div>
 
-            {/* Submit Button */}
-            <div className="text-center mt-8">
-              <motion.button
-                whileHover={{ scale: 1.02, boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)" }}
-                whileTap={{ scale: 0.98 }}
-                onClick={submit}
-                disabled={loading || !content.trim() || !rating}
-                className="w-full inline-flex items-center justify-center gap-3 bg-black text-white px-8 py-4 rounded-xl font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-              >
-                <Send size={20} />
-                {loading ? 'Publishing...' : 'Publish Review'}
-              </motion.button>
-              <p className="text-xs text-gray-500 mt-2">
-                  You are posting as {user?.username || 'Guest'}
-              </p>
+              {/* Submit */}
+              <div className="mt-10 text-center">
+                <motion.button
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={submit}
+                  disabled={loading || !content.trim()}
+                  className="inline-flex items-center gap-3 px-10 py-4 bg-black text-white rounded-full font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl"
+                >
+                  <Send size={22} />
+                  {loading ? 'Publishing...' : initialReview ? 'Update Review' : 'Publish Review'}
+                </motion.button>
+                <p className="text-sm text-gray-500 mt-3">
+                  Posting as <span className="font-medium">{user?.username || 'Guest'}</span>
+                </p>
+              </div>
             </div>
           </motion.div>
         </motion.div>

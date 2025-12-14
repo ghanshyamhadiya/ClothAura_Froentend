@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
-import { ShoppingBag, Package } from 'lucide-react';
+import { ShoppingBag, Package, Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import Loading from '../Loading';
 import ProductCard from './ProductCard';
 import { Link } from "react-router-dom";
@@ -25,7 +26,7 @@ function AllProduct() {
   } = useProducts();
 
   const { ref, inView } = useInView({
-    threshold: 0,
+    threshold: 0.1,
     triggerOnce: false,
   });
 
@@ -46,10 +47,11 @@ function AllProduct() {
 
   const getPriceInfo = (product) => {
     if (!product.variants || product.variants.length === 0) {
-      return { minPrice: 0, maxPrice: 0, hasStock: false };
+      return { minPrice: 0, maxPrice: 0, minOriginal: 0, hasStock: false };
     }
     let minPrice = Infinity;
     let maxPrice = 0;
+    let minOriginal = Infinity;
     let hasStock = false;
     product.variants.forEach(variant => {
       if (variant.sizes && variant.sizes.length > 0) {
@@ -58,6 +60,7 @@ function AllProduct() {
             hasStock = true;
             minPrice = Math.min(minPrice, size.price);
             maxPrice = Math.max(maxPrice, size.price);
+            minOriginal = Math.min(minOriginal, size.originalPrice);
           }
         });
       }
@@ -65,6 +68,7 @@ function AllProduct() {
     return {
       minPrice: minPrice === Infinity ? 0 : minPrice,
       maxPrice,
+      minOriginal: minOriginal === Infinity ? 0 : minOriginal,
       hasStock
     };
   };
@@ -74,104 +78,91 @@ function AllProduct() {
   if (loading && !searchLoading) return <Loading />;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6 mt-[10vh]">
-      <div className="max-w-7xl mx-auto">
-        {/* <div className="mb-6">
-          <SearchBar
-            onSearch={handleSearch}
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-          />
-        </div> */}
-        {/* <div className="mb-6 flex gap-4">
-          <button className="bg-blue-500 text-white px-4 py-2 rounded">
-            <Link to="/cart">Add to cart</Link>
-          </button>
-          <button className="bg-green-500 text-white px-4 py-2 rounded">
-            <Link to="/wishlist">Add to wishlist</Link>
-          </button>
-          <button className="bg-purple-500 text-white px-4 py-2 rounded">
-            <Link to="/dashboard">Dashboard</Link>
-          </button>
-          <button
-            onClick={() => {
-              sessionStorage.removeItem('cachedProducts');
-              sessionStorage.removeItem('cachedSearch');
-              fetchProducts();
-              clearSearch();
-            }}
-            className="bg-gray-500 text-white px-4 py-2 rounded"
-          >
-            Refresh
-          </button>
-        </div> */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <ShoppingBag className="w-8 h-8 text-slate-700" />
-            <h1 className="text-3xl font-bold text-slate-800">All Products</h1>
+    <div className="min-h-screen bg-white px-4 py-6 md:py-12 max-w-7xl mx-auto">
+      <div className="space-y-8">
+        {/* Search Bar */}
+        <SearchBar
+          onSearch={handleSearch}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+        />
+
+        {/* Header */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-3">
+            <ShoppingBag className="w-8 h-8 text-black" />
+            <h1 className="text-3xl font-bold text-black">All Products</h1>
           </div>
-          <p className="text-slate-600">Browse our complete product catalog</p>
-          <div className="mt-4 flex items-center gap-2 text-sm text-slate-500">
+          <p className="text-gray-600 text-sm">Discover our curated collection</p>
+          <div className="flex items-center gap-2 text-sm text-gray-500">
             <Package className="w-4 h-4" />
-            <span>{displayProducts.length} products available</span>
+            <span>{displayProducts.length} items</span>
           </div>
         </div>
+
         {searchError && (
-          <div className="bg-red-50 text-red-700 p-3 rounded-lg mb-4 text-sm">
+          <div className="bg-red-50 text-red-700 p-4 rounded-lg text-sm">
             {searchError}
           </div>
         )}
+
         {searchLoading ? (
           <Loading />
         ) : displayProducts.length === 0 ? (
-          <div className="text-center py-16">
-            <Package className="w-16 h-16 text-slate-400 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-slate-600 mb-2">No Products Found</h3>
-            <p className="text-slate-500">Try a different search term.</p>
+          <div className="text-center py-20 space-y-4">
+            <Package className="w-16 h-16 text-gray-400 mx-auto" />
+            <h3 className="text-xl font-semibold text-gray-700">No Products Found</h3>
+            <p className="text-gray-500">Try a different search term.</p>
             <button
               onClick={clearSearch}
-              className="mt-4 text-blue-500 hover:underline text-sm"
+              className="text-blue-500 hover:underline text-sm font-medium"
             >
               Clear Search
             </button>
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {displayProducts.map((product) => {
-                const firstVariant = product.variants?.[0] || {};
-                const priceInfo = getPriceInfo(product);
-                const mappedProduct = {
-                  id: product._id,
-                  name: product.name || 'Unnamed Product',
-                  category: product.category || "Uncategorized",
-                  description: product.description || "",
-                  images: firstVariant.images || [],
-                  price: priceInfo.minPrice === priceInfo.maxPrice
-                    ? `₹${priceInfo.minPrice.toLocaleString()}`
-                    : `₹${priceInfo.minPrice.toLocaleString()}`,
-                  originalPrice: null,
-                  rating: product.rating || 0,
-                  reviews: product.reviews || 0,
-                  discount: product.discount || 0,
-                  isNew: product.isNew || false,
-                  inStock: priceInfo.hasStock,
-                };
-                return (
-                  <Link key={product._id} to={`/product/${product._id}`}>
-                    <ProductCard
-                      product={mappedProduct}
-                      onAddToCart={() => console.log("Add to cart:", mappedProduct)}
-                    />
-                  </Link>
-                );
-              })}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              <AnimatePresence>
+                {displayProducts.map((product, index) => {
+                  const firstVariant = product.variants?.[0] || {};
+                  const priceInfo = getPriceInfo(product);
+                  const mappedProduct = {
+                    id: product._id,
+                    name: product.name || 'Unnamed Product',
+                    category: product.category || "Uncategorized",
+                    description: product.description || "",
+                    images: firstVariant.images || [],
+                    price: priceInfo.minPrice === priceInfo.maxPrice
+                      ? priceInfo.minPrice
+                      : priceInfo.minPrice,
+                    originalPrice: priceInfo.minOriginal > priceInfo.minPrice ? priceInfo.minOriginal : null,
+                    rating: product.rating || 4.2,
+                    reviews: product.reviews || Math.floor(Math.random() * 100) + 10,
+                    discount: product.discount || 0,
+                    isNew: product.isNew || (new Date(product.createdAt) > new Date(Date.now() - 7*24*60*60*1000)),
+                    inStock: priceInfo.hasStock,
+                    variants: product.variants,
+                  };
+                  return (
+                    <motion.div
+                      key={product._id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.3, delay: index * 0.05 }}
+                    >
+                      <Link to={`/product/${product._id}`}>
+                        <ProductCard product={mappedProduct} />
+                      </Link>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
             </div>
             {hasMore && !searchResults && (
-              <div ref={ref} className="flex justify-center py-8">
-                {loadingMore && (
-                  <Loading />
-                )}
+              <div ref={ref} className="flex justify-center py-12">
+                {loadingMore && <Loader2 className="w-8 h-8 animate-spin text-gray-500" />}
               </div>
             )}
           </>

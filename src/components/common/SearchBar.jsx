@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Search, X, Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import Input from '../Input';
 import { getAutocomplete } from '../../services/productService';
 
 function SearchBar({ onSearch, searchQuery, setSearchQuery }) {
@@ -11,14 +13,12 @@ function SearchBar({ onSearch, searchQuery, setSearchQuery }) {
   const autocompleteTimeoutRef = useRef(null);
   const wrapperRef = useRef(null);
 
-  // Close suggestions when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
         setShowSuggestions(false);
       }
     };
-
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
@@ -28,23 +28,16 @@ function SearchBar({ onSearch, searchQuery, setSearchQuery }) {
     setSearchQuery(value);
     setSelectedIndex(-1);
 
-    // Clear existing timeouts
-    if (debounceTimeoutRef.current) {
-      clearTimeout(debounceTimeoutRef.current);
-    }
-    if (autocompleteTimeoutRef.current) {
-      clearTimeout(autocompleteTimeoutRef.current);
-    }
+    if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
+    if (autocompleteTimeoutRef.current) clearTimeout(autocompleteTimeoutRef.current);
 
-    // Debounced search
     debounceTimeoutRef.current = setTimeout(() => {
       onSearch(value);
     }, 500);
 
-    // Faster autocomplete
     if (value.trim().length >= 2) {
+      setLoadingSuggestions(true);
       autocompleteTimeoutRef.current = setTimeout(async () => {
-        setLoadingSuggestions(true);
         try {
           const results = await getAutocomplete(value);
           setSuggestions(results);
@@ -82,12 +75,10 @@ function SearchBar({ onSearch, searchQuery, setSearchQuery }) {
 
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setSelectedIndex((prev) => 
-        prev < suggestions.length - 1 ? prev + 1 : prev
-      );
+      setSelectedIndex((prev) => (prev < suggestions.length - 1 ? prev + 1 : 0));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setSelectedIndex((prev) => (prev > 0 ? prev - 1 : -1));
+      setSelectedIndex((prev) => (prev > 0 ? prev - 1 : suggestions.length - 1));
     } else if (e.key === 'Enter' && selectedIndex >= 0) {
       e.preventDefault();
       handleSuggestionClick(suggestions[selectedIndex]);
@@ -96,78 +87,80 @@ function SearchBar({ onSearch, searchQuery, setSearchQuery }) {
     }
   };
 
-  // Clean up timeouts
   useEffect(() => {
     return () => {
-      if (debounceTimeoutRef.current) {
-        clearTimeout(debounceTimeoutRef.current);
-      }
-      if (autocompleteTimeoutRef.current) {
-        clearTimeout(autocompleteTimeoutRef.current);
-      }
+      if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
+      if (autocompleteTimeoutRef.current) clearTimeout(autocompleteTimeoutRef.current);
     };
   }, []);
 
   return (
-    <div ref={wrapperRef} className="relative w-full max-w-md mx-auto">
+    <div ref={wrapperRef} className="relative w-full">
       <div className="relative">
-        <input
+        <Input
           type="text"
-          placeholder="Search products..."
           value={searchQuery}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
-          onFocus={() => {
-            if (suggestions.length > 0) {
-              setShowSuggestions(true);
-            }
-          }}
-          className="w-full pl-10 pr-10 py-2 border border-slate-200 rounded-lg focus:border-slate-400 focus:outline-none transition-all bg-white text-sm"
+          onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+          placeholder="Search products..."
+          className="pr-12 pl-10"
+          style={{ transition: 'all 0.2s ease' }}
         />
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
         
-        {loadingSuggestions && (
-          <Loader2 className="absolute right-10 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 animate-spin" />
-        )}
-        
+        <AnimatePresence>
+          {loadingSuggestions && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute right-12 top-1/2 -translate-y-1/2"
+            >
+              <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {searchQuery && !loadingSuggestions && (
-          <button
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0 }}
             onClick={handleClear}
-            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
           >
             <X className="w-4 h-4" />
-          </button>
+          </motion.button>
         )}
       </div>
 
-      {/* Autocomplete Suggestions */}
-      {showSuggestions && suggestions.length > 0 && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-          {suggestions.map((suggestion, index) => (
-            <button
-              key={suggestion._id}
-              onClick={() => handleSuggestionClick(suggestion)}
-              className={`w-full px-4 py-2 text-left hover:bg-slate-50 transition-colors ${
-                index === selectedIndex ? 'bg-slate-100' : ''
-              } ${index !== suggestions.length - 1 ? 'border-b border-slate-100' : ''}`}
-            >
-              <div className="font-medium text-sm text-slate-800">
-                {suggestion.name}
-              </div>
-              <div className="text-xs text-slate-500">
-                {suggestion.category}
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* No results message */}
-      {showSuggestions && !loadingSuggestions && suggestions.length === 0 && searchQuery.length >= 2 && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg p-4 text-center text-sm text-slate-500">
-          No suggestions found
-        </div>
-      )}
+      <AnimatePresence>
+        {showSuggestions && suggestions.length > 0 && (
+          <motion.ul
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="absolute w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-xl z-50 max-h-60 overflow-y-auto"
+          >
+            {suggestions.map((sug, idx) => (
+              <motion.li
+                key={sug.id}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: idx * 0.05 }}
+                onClick={() => handleSuggestionClick(sug)}
+                className={`px-4 py-3 text-sm hover:bg-gray-50 cursor-pointer transition-colors ${
+                  idx === selectedIndex ? 'bg-gray-100' : ''
+                }`}
+              >
+                {sug.name}
+              </motion.li>
+            ))}
+          </motion.ul>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

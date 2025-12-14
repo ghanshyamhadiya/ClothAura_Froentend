@@ -8,7 +8,9 @@ import { Link, useNavigate } from 'react-router-dom';
 function AllProducts() {
   const {
     ownerProducts = [],
+    products = [],
     fetchOwnerProducts,
+    fetchAllProducts,
     loading,
     error,
     deleteProduct
@@ -18,37 +20,59 @@ function AllProducts() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (user?.role === 'owner' || user?.role === 'admin') {
+    if (user?.role === 'admin') {
+      fetchAllProducts();
+    } else if (user?.role === 'owner') {
       fetchOwnerProducts();
     }
-  }, [user, fetchOwnerProducts]);
+  }, [user, fetchOwnerProducts, fetchAllProducts]);
 
   const handleEdit = (productId) => {
     navigate(`/product/update/${productId}`);
   };
 
-  if (loading) return <Loading />;
-  if (error) return <div className="text-red-600 text-center py-10">{error}</div>;
+  // Determine which products to display based on role
+  const displayProducts = user?.role === 'admin' ? products : ownerProducts;
+  const pageTitle = user?.role === 'admin' ? 'All Products' : 'My Products';
 
-  // ✅ Safe check with optional chaining and default
-  if (!ownerProducts || ownerProducts.length === 0) {
+  if (loading) return <Loading />;
+
+  if (!displayProducts || displayProducts.length === 0) {
     return (
       <div className="text-center py-20">
         <h2 className="text-2xl font-bold">No products yet</h2>
-        <p className="text-gray-600 mt-2">Start by adding your first product!</p>
-        <Link to="/product/create" className="btn btn-primary mt-6">
-          Add Product
-        </Link>
+        <p className="text-gray-600 mt-2">
+          {user?.role === 'admin' 
+            ? 'No products have been created yet.' 
+            : 'Start by adding your first product!'}
+        </p>
+        {user?.role === 'owner' && (
+          <Link to="/product/create" className="btn btn-primary mt-6 inline-block bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">
+            Add Product
+          </Link>
+        )}
       </div>
     );
   }
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-8">My Products ({ownerProducts.length})</h1>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold">
+          {pageTitle} ({displayProducts.length})
+        </h1>
+        {(user?.role === 'owner' || user?.role === 'admin') && (
+          <Link 
+            to="/product/create" 
+            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Add New Product
+          </Link>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {ownerProducts.map(product => (
+        {displayProducts.map(product => (
           <ProductCard
             key={product._id}
             product={product}

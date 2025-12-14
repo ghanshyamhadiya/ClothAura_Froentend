@@ -1,5 +1,5 @@
 import React, { useState, forwardRef } from 'react';
-
+import { motion, AnimatePresence } from 'framer-motion';
 
 const Input = forwardRef(({ 
   type = 'text', 
@@ -14,96 +14,65 @@ const Input = forwardRef(({
 
   const handleChange = (e) => {
     setHasValue(e.target.value.length > 0);
-    if (props.onChange) {
-      props.onChange(e);
-    }
+    if (props.onChange) props.onChange(e);
+  };
+
+  const labelVariants = {
+    rested: { top: '50%', fontSize: '0.875rem', transform: 'translateY(-50%)', color: '#9ca3af' },
+    floated: { top: 0, fontSize: '0.75rem', transform: 'translateY(-50%)', color: '#6b7280' },
+  };
+
+  const inputVariants = {
+    rested: { scale: 1 },
+    focused: { scale: 1.01 },
   };
 
   return (
-    <div 
-      className={`relative w-full ${className}`}
-      style={{
-        animation: 'fadeInUp 0.3s ease-out'
-      }}
-    >
+    <div className={`relative w-full ${className}`}>
       {label && (
-        <label
-          className={`absolute left-3 transition-all duration-300 pointer-events-none z-10 ${
-            isFocused || hasValue
-              ? 'top-1 text-xs text-gray-600 bg-white px-1 -translate-y-1/2'
-              : 'top-1/2 text-sm text-gray-400 -translate-y-1/2'
-          }`}
-          style={{
-            transform: isFocused || hasValue ? 'translateY(-8px) scale(0.9)' : 'translateY(-50%)',
-            transition: 'all 0.2s ease'
-          }}
+        <motion.label
+          className="absolute left-3 px-1 bg-white pointer-events-none z-10 origin-left"
+          variants={labelVariants}
+          animate={isFocused || hasValue ? 'floated' : 'rested'}
+          transition={{ duration: 0.2, ease: 'easeInOut' }}
         >
           {label}
-        </label>
+        </motion.label>
       )}
       
-      <input
+      <motion.input
         ref={ref}
         type={type}
         placeholder={label ? '' : placeholder}
         className={`
-          w-full px-4 py-3 text-black bg-white rounded-xl
-          transition-all duration-300 outline-none
-          focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50
-          hover:shadow-md focus:shadow-lg
-          ${error ? 'ring-2 ring-red-500' : 'ring-1 ring-gray-200'}
-          ${label ? 'pt-6 pb-2' : ''}
+          w-full px-4 py-3 text-gray-900 bg-white rounded-lg
+          border border-gray-300 focus:border-gray-500 outline-none
+          transition-colors duration-200
+          ${error ? 'border-red-500 focus:border-red-500' : ''}
+          ${label ? 'pt-5 pb-2' : ''}
         `}
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
         onChange={handleChange}
-        style={{
-          transform: isFocused ? 'scale(1.02)' : 'scale(1)',
-          transition: 'all 0.2s ease'
-        }}
-        onMouseEnter={(e) => {
-          if (!isFocused) e.target.style.transform = 'scale(1.01)';
-        }}
-        onMouseLeave={(e) => {
-          if (!isFocused) e.target.style.transform = 'scale(1)';
-        }}
+        variants={inputVariants}
+        animate={isFocused ? 'focused' : 'rested'}
+        transition={{ duration: 0.2 }}
         {...props}
       />
       
-      {error && (
-        <span
-          className="text-red-500 text-sm mt-1 block"
-          style={{
-            animation: 'fadeIn 0.2s ease-in'
-          }}
-        >
-          {error}
-        </span>
-      )}
-      
-      <style>{`
-        @keyframes fadeInUp {
-          from {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(-5px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-      `}</style>
+      <AnimatePresence>
+        {error && (
+          <motion.span
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="absolute left-0 mt-1 text-red-500 text-xs"
+          >
+            {error}
+          </motion.span>
+        )}
+      </AnimatePresence>
     </div>
   );
 });

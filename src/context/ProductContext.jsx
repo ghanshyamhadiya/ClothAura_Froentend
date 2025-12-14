@@ -57,16 +57,68 @@ export const ProductProvider = ({ children }) => {
   };
 
   // ✅ Helper to save products with timestamp
-  const saveProductsToCache = (productsData) => {
+  const saveProductsToCache = useCallback((productsData) => {
     sessionStorage.setItem('cachedProducts', JSON.stringify({
       data: productsData,
       timestamp: Date.now()
     }));
-  };
+  }, []);
+
+  // ✅ Helper to save owner products to cache
+  const saveOwnerProductsToCache = useCallback((ownerProductsData) => {
+    sessionStorage.setItem('cachedOwnerProducts', JSON.stringify({
+      data: ownerProductsData,
+      timestamp: Date.now()
+    }));
+  }, []);
+
+  // ✅ Helper to invalidate all caches
+  const invalidateAllCaches = useCallback(() => {
+    sessionStorage.removeItem('cachedProducts');
+    sessionStorage.removeItem('cachedOwnerProducts');
+    sessionStorage.removeItem('cachedSearch');
+  }, []);
+
+  // ✅ Helper to refresh products from server
+  const refreshProductsFromServer = useCallback(async () => {
+    try {
+      console.log('🔄 Refreshing products from server...');
+      const data = await getPaginatedProducts(1, LIMIT);
+      setProducts(data.products || []);
+      setCurrentPage(1);
+      setHasMore(data.hasNext || false);
+      saveProductsToCache(data.products || []);
+      console.log('✅ Products refreshed successfully');
+      return data.products;
+    } catch (err) {
+      console.error('❌ Failed to refresh products:', err);
+      throw err;
+    }
+  }, [LIMIT, saveProductsToCache]);
+
+  // ✅ Helper to refresh owner products from server
+  const refreshOwnerProductsFromServer = useCallback(async () => {
+    if (!isAuthenticated || !user || (user.role !== 'owner' && user.role !== 'admin')) {
+      return;
+    }
+
+    try {
+      console.log('🔄 Refreshing owner products from server...');
+      const products = await getOwnerProducts();
+      setOwnerProducts(products);
+      saveOwnerProductsToCache(products);
+      console.log('✅ Owner products refreshed successfully');
+      return products;
+    } catch (err) {
+      console.error('❌ Failed to refresh owner products:', err);
+      throw err;
+    }
+  }, [isAuthenticated, user, saveOwnerProductsToCache]);
 
   // ✅ Initial load from cache with validation
   useEffect(() => {
     const cachedProducts = sessionStorage.getItem('cachedProducts');
+    const cachedOwnerProducts = sessionStorage.getItem('cachedOwnerProducts');
     const cachedSearch = sessionStorage.getItem('cachedSearch');
 
     if (cachedProducts) {
@@ -78,7 +130,6 @@ export const ProductProvider = ({ children }) => {
           setHasMore(true);
           initialFetchDone.current = true;
         } else {
-          // Cache expired, remove it
           sessionStorage.removeItem('cachedProducts');
         }
       } catch (e) {
@@ -86,12 +137,29 @@ export const ProductProvider = ({ children }) => {
       }
     }
 
+    if (cachedOwnerProducts) {
+      try {
+        const { data, timestamp } = JSON.parse(cachedOwnerProducts);
+        if (isCacheValid(timestamp)) {
+          setOwnerProducts(data);
+        } else {
+          sessionStorage.removeItem('cachedOwnerProducts');
+        }
+      } catch (e) {
+        sessionStorage.removeItem('cachedOwnerProducts');
+      }
+    }
+
     if (cachedSearch) {
-      const { query, results, error, options } = JSON.parse(cachedSearch);
-      setSearchQuery(query || '');
-      setSearchResults(results || null);
-      setSearchError(error || null);
-      setSearchOptions(options || { fuzzy: true, category: null });
+      try {
+        const { query, results, error, options } = JSON.parse(cachedSearch);
+        setSearchQuery(query || '');
+        setSearchResults(results || null);
+        setSearchError(error || null);
+        setSearchOptions(options || { fuzzy: true, category: null });
+      } catch (e) {
+        sessionStorage.removeItem('cachedSearch');
+      }
     }
   }, []);
 
@@ -100,7 +168,14 @@ export const ProductProvider = ({ children }) => {
     if (products.length > 0) {
       saveProductsToCache(products);
     }
-  }, [products]);
+  }, [products, saveProductsToCache]);
+
+  // ✅ Update cache when owner products change
+  useEffect(() => {
+    if (ownerProducts.length > 0) {
+      saveOwnerProductsToCache(ownerProducts);
+    }
+  }, [ownerProducts, saveOwnerProductsToCache]);
 
   useEffect(() => {
     sessionStorage.setItem('cachedSearch', JSON.stringify({
@@ -111,25 +186,9 @@ export const ProductProvider = ({ children }) => {
     }));
   }, [searchQuery, searchResults, searchError, searchOptions]);
 
-  // const isOwner = useCallback((product) => {
-  //   const currentUserId = user?.id;
-  //   if (!product || !currentUserId) return false;
-
-  //   const ownerId = typeof product.owner === 'object' ? product.owner._id : product.owner;
-
-  //   return ownerId.toString() === currentUserId.toString();
-  // }, [currentUserId])
-
-  // const canEditProduct = useCallback((product, userRole) => {
-  //   const userRole = user.role;
-  //   if(userRole === 'admin') return true;
-  //   return isOwner(product);
-  // }, [isOwner])
-
   const fetchProducts = useCallback(async () => {
     if (fetchInProgress.current) return;
 
-    // ✅ Check cache validity before using
     const cachedProducts = sessionStorage.getItem('cachedProducts');
     if (cachedProducts) {
       try {
@@ -164,28 +223,28 @@ export const ProductProvider = ({ children }) => {
       setLoading(false);
       fetchInProgress.current = false;
     }
-  }, [LIMIT]);
+  }, [LIMIT, saveProductsToCache]);
 
   useEffect(() => {
     if (!hasChecked || authLoading) return;
-    if (isAuthenticated && !initialFetchDone.current && products.length === 0) {
+    
+    if (!initialFetchDone.current && products.length === 0) {
       fetchProducts();
-    } else if (!isAuthenticated) {
-      setProducts([]);
-      setSearchQuery('');
-      setSearchResults(null);
-      setSearchError(null);
-      sessionStorage.removeItem('cachedProducts');
-      sessionStorage.removeItem('cachedSearch');
-      initialFetchDone.current = false;
     }
-  }, [isAuthenticated, hasChecked, authLoading, fetchProducts, products.length]);
+    
+    if (!isAuthenticated && initialFetchDone.current) {
+      setOwnerProducts([]);
+      sessionStorage.removeItem('cachedOwnerProducts');
+    }
+  }, [hasChecked, authLoading, fetchProducts, products.length, isAuthenticated]);
 
-  // ✅ Socket listeners with immediate cache update
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    const handleProductCreated = (newProduct) => {
+    const handleProductCreated = async (newProduct) => {
+      console.log('🆕 Product created event received');
+      
+      // Update main products list
       setProducts((prev) => {
         const exists = prev.some(p => p._id === newProduct._id);
         if (exists) return prev;
@@ -193,10 +252,23 @@ export const ProductProvider = ({ children }) => {
         saveProductsToCache(newProducts);
         return newProducts;
       });
+
+      // Refresh owner products if user is owner/admin
+      if (user?.role === 'owner' || user?.role === 'admin') {
+        await refreshOwnerProductsFromServer();
+      }
+
+      // Invalidate search cache
+      sessionStorage.removeItem('cachedSearch');
+      setSearchResults(null);
+      
       toastService.success('New product added!');
     };
 
-    const handleProductUpdated = (updatedProduct) => {
+    const handleProductUpdated = async (updatedProduct) => {
+      console.log('✏️ Product updated event received');
+      
+      // Update main products list
       setProducts((prev) => {
         const newProducts = prev.map((p) =>
           p._id === updatedProduct._id ? updatedProduct : p
@@ -204,15 +276,38 @@ export const ProductProvider = ({ children }) => {
         saveProductsToCache(newProducts);
         return newProducts;
       });
+
+      // Refresh owner products if user is owner/admin
+      if (user?.role === 'owner' || user?.role === 'admin') {
+        await refreshOwnerProductsFromServer();
+      }
+
+      // Invalidate search cache
+      sessionStorage.removeItem('cachedSearch');
+      setSearchResults(null);
+      
       toastService.success('Product updated!');
     };
 
-    const handleProductDeleted = (deletedId) => {
+    const handleProductDeleted = async (deletedId) => {
+      console.log('🗑️ Product deleted event received');
+      
+      // Update main products list
       setProducts((prev) => {
         const newProducts = prev.filter((p) => p._id !== deletedId);
         saveProductsToCache(newProducts);
         return newProducts;
       });
+
+      // Refresh owner products if user is owner/admin
+      if (user?.role === 'owner' || user?.role === 'admin') {
+        await refreshOwnerProductsFromServer();
+      }
+
+      // Invalidate search cache
+      sessionStorage.removeItem('cachedSearch');
+      setSearchResults(null);
+      
       toastService.success('Product deleted!');
     };
 
@@ -225,7 +320,22 @@ export const ProductProvider = ({ children }) => {
       offProductUpdate(handleProductUpdated);
       offProductDelete(handleProductDeleted);
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user, saveProductsToCache, refreshOwnerProductsFromServer]);
+
+  const fetchAllProducts = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await getAllProducts();
+      setProducts(data);
+      saveProductsToCache(data);
+    } catch (err) {
+      setError(err.message || "Failed to fetch all products");
+      toastService.error(err.message || "Failed to fetch all products");
+    } finally {
+      setLoading(false);
+    }
+  }, [saveProductsToCache]);
 
   const searchProducts = useCallback(async (query, options = {}) => {
     if (!query.trim()) {
@@ -308,7 +418,7 @@ export const ProductProvider = ({ children }) => {
       setLoadingMore(false);
       loadMoreInProgress.current = false;
     }
-  }, [hasMore, loadingMore, currentPage, LIMIT]);
+  }, [hasMore, loadingMore, currentPage, LIMIT, saveProductsToCache]);
 
   const getProduct = useCallback(async (id) => {
     try {
@@ -334,6 +444,7 @@ export const ProductProvider = ({ children }) => {
       const products = await getOwnerProducts();
       console.log('Owner products fetched:', products);
       setOwnerProducts(products);
+      saveOwnerProductsToCache(products);
       return products;
     } catch (err) {
       const msg = err.response?.data?.message || "Failed to load your products";
@@ -342,13 +453,29 @@ export const ProductProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, saveOwnerProductsToCache]);
 
   const createProduct = useCallback(async (productData) => {
+    if (!isAuthenticated) {
+      toastService.error('Please login to create products');
+      throw new Error('Authentication required');
+    }
+    
     try {
       setLoading(true);
       setError(null);
       const response = await createProducts(productData);
+      
+      // ✅ Refresh all products and owner products from server
+      await Promise.all([
+        refreshProductsFromServer(),
+        refreshOwnerProductsFromServer()
+      ]);
+      
+      // ✅ Invalidate search cache
+      sessionStorage.removeItem('cachedSearch');
+      setSearchResults(null);
+      
       toastService.success('Product created successfully!');
       return response;
     } catch (err) {
@@ -358,13 +485,29 @@ export const ProductProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isAuthenticated, refreshProductsFromServer, refreshOwnerProductsFromServer]);
 
   const updateProduct = useCallback(async (id, productData) => {
+    if (!isAuthenticated) {
+      toastService.error('Please login to update products');
+      throw new Error('Authentication required');
+    }
+    
     try {
       setLoading(true);
       setError(null);
       const response = await updateProducts(id, productData);
+      
+      // ✅ Refresh all products and owner products from server
+      await Promise.all([
+        refreshProductsFromServer(),
+        refreshOwnerProductsFromServer()
+      ]);
+      
+      // ✅ Invalidate search cache
+      sessionStorage.removeItem('cachedSearch');
+      setSearchResults(null);
+      
       toastService.success('Product updated successfully!');
       return response;
     } catch (err) {
@@ -374,13 +517,29 @@ export const ProductProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isAuthenticated, refreshProductsFromServer, refreshOwnerProductsFromServer]);
 
   const deleteProduct = useCallback(async (id) => {
+    if (!isAuthenticated) {
+      toastService.error('Please login to delete products');
+      throw new Error('Authentication required');
+    }
+    
     try {
       setLoading(true);
       setError(null);
       await deleteProducts(id);
+      
+      // ✅ Refresh all products and owner products from server
+      await Promise.all([
+        refreshProductsFromServer(),
+        refreshOwnerProductsFromServer()
+      ]);
+      
+      // ✅ Invalidate search cache
+      sessionStorage.removeItem('cachedSearch');
+      setSearchResults(null);
+      
       toastService.success('Product deleted successfully!');
     } catch (err) {
       setError(err.message || "Failed to delete product");
@@ -389,14 +548,31 @@ export const ProductProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isAuthenticated, refreshProductsFromServer, refreshOwnerProductsFromServer]);
 
   const clearError = useCallback(() => setError(null), []);
+
+  // ✅ Expose cache management functions
+  const refreshCache = useCallback(async () => {
+    try {
+      setLoading(true);
+      await Promise.all([
+        refreshProductsFromServer(),
+        refreshOwnerProductsFromServer()
+      ]);
+      toastService.success('Cache refreshed successfully!');
+    } catch (err) {
+      toastService.error('Failed to refresh cache');
+    } finally {
+      setLoading(false);
+    }
+  }, [refreshProductsFromServer, refreshOwnerProductsFromServer]);
 
   const value = {
     products,
     loading,
     error,
+    fetchAllProducts,
     fetchProducts,
     getProduct,
     createProduct,
@@ -416,8 +592,12 @@ export const ProductProvider = ({ children }) => {
     searchOptions,
     setSearchOptions,
     fetchOwnerProducts,
-    ownerProducts
-    // canEditProduct
+    ownerProducts,
+    //cache management functions
+    refreshCache,
+    invalidateAllCaches,
+    refreshProductsFromServer,
+    refreshOwnerProductsFromServer
   };
 
   return (

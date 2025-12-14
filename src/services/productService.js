@@ -105,7 +105,7 @@ export const updateProducts = async (id, productData) => {
 // Get all products
 export const getAllProducts = async () => {
   try {
-    const response = await api.get('/products');
+    const response = await api.get('/products/public');
     return response.data.products || [];
   } catch (error) {
     console.error('Error fetching all products:', error);
@@ -126,7 +126,7 @@ export const getOwnerProducts = async () => {
 // Get paginated products
 export const getPaginatedProducts = async (page = 1, limit = 8) => {
   try {
-    const response = await api.get(`/products/page?page=${page}&limit=${limit}`);
+    const response = await api.get(`/products/public/page?page=${page}&limit=${limit}`);
     return response.data;
   } catch (error) {
     console.error('Error fetching paginated products:', error);
@@ -137,7 +137,7 @@ export const getPaginatedProducts = async (page = 1, limit = 8) => {
 // Get product by ID
 export const getProductById = async (id) => {
   try {
-    const response = await api.get(`/products/${id}`);
+    const response = await api.get(`/products/public/${id}`);
     return response.data;
   } catch (error) {
     console.error('Error fetching product by ID:', error);
@@ -167,8 +167,8 @@ export const searchProducts = async (query, options = {}) => {
   if (category) {
     params.append('category', category);
   }
-  
-  const response = await api.get(`/products/search?${params.toString()}`);
+
+  const response = await api.get(`/products/public/search?${params.toString()}`);
   return response.data.products;
 };
 
@@ -177,7 +177,7 @@ export const getAutocomplete = async (query) => {
     return [];
   }
   
-  const response = await api.get(`/products/autocomplete`, {
+  const response = await api.get(`/products/public/autocomplete`, {
     params: { q: query }
   });
   return response.data.suggestions;

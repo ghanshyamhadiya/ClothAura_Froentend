@@ -85,6 +85,9 @@ export const AuthProvider = ({ children }) => {
           setUser(userData);
           setAddresses(userData.addresses || []);
           setIsAuthenticated(true);
+          
+          // ✅ Mark that user was logged in
+          localStorage.setItem('wasLoggedIn', 'true');
 
           // Authenticate socket if connected
           if (isConnected) {
@@ -94,6 +97,7 @@ export const AuthProvider = ({ children }) => {
           console.error("Failed to fetch user data:", fetchError);
           if (fetchError.response?.status === 401 || fetchError.response?.status === 403) {
             localStorage.removeItem("accessToken");
+            localStorage.removeItem("wasLoggedIn"); // Clear flag
             setIsAuthenticated(false);
             setUser(null);
             setAddresses([]);
@@ -128,6 +132,9 @@ export const AuthProvider = ({ children }) => {
       setUser(userData);
       setAddresses(userData.addresses || []);
       setIsAuthenticated(true);
+      
+      // ✅ Mark that user has logged in successfully
+      localStorage.setItem('wasLoggedIn', 'true');
 
       // Authenticate socket with new token
       const token = authService.getToken();
@@ -159,6 +166,9 @@ export const AuthProvider = ({ children }) => {
       setUser(user);
       setAddresses(user.addresses || []);
       setIsAuthenticated(true);
+      
+      // ✅ Mark that user has registered successfully
+      localStorage.setItem('wasLoggedIn', 'true');
 
       // Authenticate socket with new token
       const token = authService.getToken();
@@ -194,7 +204,11 @@ export const AuthProvider = ({ children }) => {
       setUser(null);
       setAddresses([]);
       setIsAuthenticated(false);
+      
+      // ✅ Clear both tokens and the login flag
       localStorage.removeItem("accessToken");
+      localStorage.removeItem("wasLoggedIn");
+      
       setLoading(false);
       setHasChecked(true);
     }
@@ -212,6 +226,9 @@ export const AuthProvider = ({ children }) => {
           setUser(userData);
           setAddresses(userData.addresses || []);
           setIsAuthenticated(true);
+          
+          // ✅ Mark that user is now authenticated
+          localStorage.setItem('wasLoggedIn', 'true');
 
           const authToken = authService.getToken();
           if (authToken && isConnected) {
@@ -250,6 +267,7 @@ export const AuthProvider = ({ children }) => {
       setHasChecked(true);
     }
   }
+  
   const fetchAndSetUser = async () => {
     try {
       const userData = await authService.getUserByApi();
@@ -257,6 +275,9 @@ export const AuthProvider = ({ children }) => {
       setAddresses(userData.addresses || []);
       setIsAuthenticated(true);
       setError(null);
+      
+      // ✅ Mark that user is authenticated
+      localStorage.setItem('wasLoggedIn', 'true');
 
       // Authenticate socket if connected
       const token = authService.getToken();
@@ -272,6 +293,7 @@ export const AuthProvider = ({ children }) => {
         setAddresses([]);
         setIsAuthenticated(false);
         localStorage.removeItem("accessToken");
+        localStorage.removeItem("wasLoggedIn"); // Clear flag
       }
       setError(error.message);
       throw error;
@@ -294,9 +316,8 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, []); // No dependencies needed since it doesn't use any external values
+  }, []);
 
-  // Apply useCallback to other functions too:
   const addAddress = useCallback(async (addressData) => {
     try {
       setLoading(true);

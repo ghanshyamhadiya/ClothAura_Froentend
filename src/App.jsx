@@ -1,43 +1,41 @@
-import { useAuth } from './context/AuthContext';
-import Login from './components/auth/Login';
-import Register from './components/auth/Register';
-import { Navigate, Route, Routes } from 'react-router-dom';
-import Dashboard from './components/Dashboard';
-import EmailVerification from './components/EmailVerification';
-import Loading from './components/Loading';
-import AllProduct from './components/products/AllProduct';
-import socket from './utils/socket';
-import { useEffect } from 'react';
-import ProductDetails from './components/products/ProductDetails';
-import WishList from './components/cartWishlist/WishList';
-import Cart from './components/cartWishlist/Cart';
-import Address from './components/checkOut/Address';
-import Checkout from './components/checkOut/Checkout';
-import { cartService } from './services/cartService';
-import OrderHistory from './components/checkOut/OrderHistory';
-import ToastWrapper from './components/common/ToastContainer';
-import { toastService } from './services/toastService';
-import CreateProduct from './components/products/CreateProduct';
-import OwnerRegister from './components/auth/OwnerRegister';
-import AllProducts from './components/admin/AllProducts';
-import CreateCoupon from './components/admin/CreateCoupon';
-import NotFoundPage from './components/common/NotFoundPage';
-import UserCoupons from './components/checkOut/UserCoupon';
-import Header from './components/header/Header';
-import OrderDashboard from './components/Dashboard/OrderDashboard';
+// src/App.jsx
+import React from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
+
+import MainLayout from "./components/layout/MainLayout";
+import AuthModal from "./components/auth/AuthModel";
+import ToastWrapper from "./components/common/ToastWrapper";
+
+// Pages & Components
+import ProductDetails from "./pages/ProductDetails";
+import WishList from "./components/cartWishlist/WishList";
+import Dashboard from "./components/Dashboard";
+import OrderDashboard from "./pages/OrderDashboard";
+import Checkout from "./components/checkOut/Checkout";
+import UserCoupons from "./components/checkOut/UserCoupon";
+import OrderHistory from "./components/checkOut/OrderHistory";
+import Address from "./components/checkOut/Address";
+
+import CreateProduct from "./pages/CreateProduct";
+import AllProducts from "./components/admin/AllProducts";
+import CreateCoupon from "./components/admin/CreateCoupon";
+
+import EmailVerification from "./components/EmailVerification";
+import NotFoundPage from "./components/common/NotFoundPage";
+
+// Route Guards
+import { useAuth } from "./context/AuthContext";
+import { toastService } from "./services/toastService";
+import { cartService } from "./services/cartService";
+import Loading from "./components/Loading";
+import AllProduct from "./pages/AllProducts";
+import Cart from "./pages/Cart";
 
 const ProtectedRoutes = ({ children, requireCart = false }) => {
   const { isAuthenticated, loading, hasChecked } = useAuth();
 
-  // Show loading only during initial check or auth loading
-  if ((loading && !hasChecked)) {
-    return <Loading />;
-  }
-
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
+  if (loading && !hasChecked) return <Loading />;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
 
   if (requireCart && cartService.length === 0) {
     return <Navigate to="/cart" replace />;
@@ -48,173 +46,165 @@ const ProtectedRoutes = ({ children, requireCart = false }) => {
 
 const OwnerRoutes = ({ children }) => {
   const { user, isAuthenticated } = useAuth();
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-  
-  if (!user || user.role !== 'owner') {
-    toastService.error('Access denied. Owners only.');
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (!user || user.role !== "owner") {
+    toastService.error("Access denied. Owners only.");
     return <Navigate to="/" replace />;
   }
-
   return children;
-}
+};
 
 const AdminRoutes = ({ children }) => {
   const { user, isAuthenticated } = useAuth();
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-  
-  if (!user || user.role !== 'admin') {
-    toastService.error('Access denied. Admins only.');
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (!user || user.role !== "admin") {
+    toastService.error("Access denied. Admins only.");
     return <Navigate to="/" replace />;
   }
-
   return children;
 };
 
 const AdminOwnerRoutes = ({ children }) => {
   const { user, isAuthenticated } = useAuth();
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-  
-  if (!user || (user.role !== 'admin' && user.role !== 'owner')) {
-    toastService.error('Access denied. Admins or Owners only.');
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (!user || (user.role !== "admin" && user.role !== "owner")) {
+    toastService.error("Access denied. Admins or Owners only.");
     return <Navigate to="/" replace />;
   }
-
   return children;
 };
 
 const PublicRoute = ({ children }) => {
   const { isAuthenticated, loading, hasChecked } = useAuth();
-
-  if (loading && !hasChecked) {
-    return <Loading />;
-  }
-
+  if (loading && !hasChecked) return <Loading />;
   return !isAuthenticated ? children : <Navigate to="/" replace />;
 };
 
 function App() {
-
   return (
     <>
-    <Header />
+      <AuthModal />
       <ToastWrapper />
+
       <Routes>
-        <Route path="/product/:id" element={
-          <ProtectedRoutes>
-            <ProductDetails />
-          </ProtectedRoutes>}
-        />
-        <Route path="/dashboard" element={
-          <ProtectedRoutes>
-            <Dashboard />
-          </ProtectedRoutes>}
-        />
-        <Route path="/" element={
-          <ProtectedRoutes>
-            <AllProduct />
-          </ProtectedRoutes>}
-        />
+        <Route element={<MainLayout />}>
+          <Route path="/" element={<AllProduct />} />
+          <Route path="/product/:id" element={<ProductDetails />} />
 
-        
-        <Route path="/dashboard/orders" element={
-          <ProtectedRoutes>
-            <OrderDashboard />
-          </ProtectedRoutes>}
-        />
+          <Route
+            path="/cart"
+            element={
+              <ProtectedRoutes>
+                <Cart />
+              </ProtectedRoutes>
+            }
+          />
+          <Route
+            path="/wishlist"
+            element={
+              <ProtectedRoutes>
+                <WishList />
+              </ProtectedRoutes>
+            }
+          />
 
-        {/* cart & wishlist */}
-        <Route path="/cart" element={
-          <ProtectedRoutes>
-            <Cart />
-          </ProtectedRoutes>}
-        />
-        <Route path="/wishlist" element={
-          <ProtectedRoutes>
-            <WishList />
-          </ProtectedRoutes>}
-        />
-        <Route path="/checkout" element={
-          <ProtectedRoutes requireCart={true}>
-            <Checkout />
-          </ProtectedRoutes>}
-        />
-        <Route path="/user-coupons" element={
-          <ProtectedRoutes requireCart={true}>
-            <UserCoupons />
-          </ProtectedRoutes>}
-        />
-        <Route path="/orders" element={
-          <ProtectedRoutes>
-            <OrderHistory />
-          </ProtectedRoutes>}
-        />
-        <Route path="/address" element={
-          <ProtectedRoutes>
-            <Address />
-          </ProtectedRoutes>}
-        />
+          <Route
+            path="/checkout"
+            element={
+              <ProtectedRoutes requireCart={true}>
+                <Checkout />
+              </ProtectedRoutes>
+            }
+          />
+          <Route
+            path="/user-coupons"
+            element={
+              <ProtectedRoutes requireCart={true}>
+                <UserCoupons />
+              </ProtectedRoutes>
+            }
+          />
+          <Route
+            path="/orders"
+            element={
+              <ProtectedRoutes>
+                <OrderHistory />
+              </ProtectedRoutes>
+            }
+          />
+          <Route
+            path="/address"
+            element={
+              <ProtectedRoutes>
+                <Address />
+              </ProtectedRoutes>
+            }
+          />
 
-        {/* authentication */}
-        <Route path="/login" element={
-          <PublicRoute>
-            <Login />
-          </PublicRoute>}
-        />
-        <Route path="/owner/register" element={
-          <PublicRoute>
-            <OwnerRegister />
-          </PublicRoute>}
-        />
-        <Route path="/register" element={
-          <PublicRoute>
-            <Register />
-          </PublicRoute>}
-        />
-        <Route path="/register/owner" element={
-          <PublicRoute>
-            <OwnerRegister />
-          </PublicRoute>}
-        />
-        <Route path="/product/update/:id" element={
-          <ProtectedRoutes>
-            <AdminOwnerRoutes>
-              <CreateProduct />
-            </AdminOwnerRoutes>
-          </ProtectedRoutes>}
-        />
-        <Route path="/owner/dashboard/products" element={
-          <ProtectedRoutes>
-            <OwnerRoutes>
-              <AllProducts />
-            </OwnerRoutes>
-          </ProtectedRoutes>}
-        />
-        <Route path="/product/create" element={
-          <ProtectedRoutes>
-            <AdminOwnerRoutes>
-              <CreateProduct />
-            </AdminOwnerRoutes>
-          </ProtectedRoutes>}
-        />
-        <Route path="/coupon/create" element={
-          <ProtectedRoutes>
-            <AdminOwnerRoutes>
-              <CreateCoupon />
-            </AdminOwnerRoutes>
-          </ProtectedRoutes>}
-        />
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoutes>
+                <Dashboard />
+              </ProtectedRoutes>
+            }
+          />
+          <Route
+            path="/dashboard/orders"
+            element={
+              <ProtectedRoutes>
+                <AdminOwnerRoutes>
+                  <OrderDashboard />
+                </AdminOwnerRoutes>
+              </ProtectedRoutes>
+            }
+          />
+
+          {/* Admin / Owner */}
+          <Route
+            path="/manage/dashboard/products"
+            element={
+              <ProtectedRoutes>
+                <AdminOwnerRoutes>
+                  <AllProducts />
+                </AdminOwnerRoutes>
+              </ProtectedRoutes>
+            }
+          />
+          <Route
+            path="/product/create"
+            element={
+              <ProtectedRoutes>
+                <AdminOwnerRoutes>
+                  <CreateProduct />
+                </AdminOwnerRoutes>
+              </ProtectedRoutes>
+            }
+          />
+          <Route
+            path="/product/update/:id"
+            element={
+              <ProtectedRoutes>
+                <AdminOwnerRoutes>
+                  <CreateProduct />
+                </AdminOwnerRoutes>
+              </ProtectedRoutes>
+            }
+          />
+          <Route
+            path="/coupon/create"
+            element={
+              <ProtectedRoutes>
+                <AdminOwnerRoutes>
+                  <CreateCoupon />
+                </AdminOwnerRoutes>
+              </ProtectedRoutes>
+            }
+          />
+        </Route>
 
         <Route path="/email-verification/:token" element={<EmailVerification />} />
-        
+
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </>

@@ -1,210 +1,121 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, ArrowLeft, Sparkles } from 'lucide-react';
-import { useCartWishlist } from '../../context/CartWhislistContext';
-import ConfirmationModal from '../model/ConfirmationModel';
-import Button from '../Button';
-import Card from '../Card';
+import React, { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Heart, ArrowLeft, ShoppingBag, Trash2 } from "lucide-react";
+import { useCartWishlist } from "../../context/CartWhislistContext";
+import ConfirmationModal from "../model/ConfirmationModel";
+import Button from "../Button";
+import Loading from "../Loading";
+import AddCartModal from "../common/AddCartModal";
+import { useNavigate } from "react-router-dom";
 
 const WishList = () => {
-  const { wishlist, removeFromWishlist, addToCart } = useCartWishlist();
-  const [removingItem, setRemovingItem] = useState(null);
-  const [movingToCart, setMovingToCart] = useState(null);
-  const [modalConfig, setModalConfig] = useState({
-    isOpen: false,
-    item: null,
-    loading: false,
-  });
+  const navigate = useNavigate();
+  const { wishlist, removeFromWishlist, addToCart, loading } = useCartWishlist();
 
-  // Open confirmation modal
-  const handleRemoveClick = (item) => {
-    setModalConfig({
-      isOpen: true,
-      item,
-      loading: false,
-    });
-  };
+  const [confirm, setConfirm] = useState({ isOpen: false, item: null });
+  const [addCart, setAddCart] = useState({ isOpen: false, productId: null });
 
-  // Confirm remove action
+  const openAddCart = (productId) => setAddCart({ isOpen: true, productId });
+  const closeAddCart = () => setAddCart({ isOpen: false, productId: null });
+
+  const handleConfirmOpen = (item) => setConfirm({ isOpen: true, item });
+  const handleConfirmClose = () => setConfirm({ isOpen: false, item: null });
+
   const handleConfirmRemove = async () => {
-    if (!modalConfig.item) return;
-    setRemovingItem(modalConfig.item._id);
-    setModalConfig((prev) => ({ ...prev, loading: true }));
-
-    try {
-      await removeFromWishlist(modalConfig.item._id);
-    } catch (error) {
-      console.error('Error removing from wishlist:', error);
-    } finally {
-      setRemovingItem(null);
-      setModalConfig({ isOpen: false, item: null, loading: false });
-    }
+    if (!confirm.item) return;
+    await removeFromWishlist(confirm.item._id);
+    handleConfirmClose();
   };
 
-  // Close modal
-  const handleModalClose = () => {
-    if (!modalConfig.loading) {
-      setModalConfig({ isOpen: false, item: null, loading: false });
-    }
-  };
-
-  // Move to cart
-  const handleMoveToCart = async (productId) => {
-    setMovingToCart(productId);
+  const handleAddToCartFromModal = async (productId, variantId, sizeId, qty) => {
+    await addToCart(productId, variantId, sizeId, qty);
+    // remove from wishlist after successful add
     try {
-      await addToCart(productId);
       await removeFromWishlist(productId);
-    } catch (error) {
-      console.error('Error moving to cart:', error);
-    } finally {
-      setMovingToCart(null);
+    } catch (err) {
+      // ignore removal errors here
+      console.error("Failed to remove from wishlist after adding to cart", err);
     }
+    closeAddCart();
   };
 
-  // Animation variants
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-        delayChildren: 0.2,
-      }
-    }
-  };
-
-  const headerVariants = {
-    hidden: { opacity: 0, y: -20 },
-    visible: { 
-      opacity: 1, 
-      y: 0,
-      transition: { duration: 0.6, ease: 'easeOut' }
-    }
-  };
-
-  const emptyStateVariants = {
-    hidden: { opacity: 0, y: 30, scale: 0.9 },
-    visible: { 
-      opacity: 1, 
-      y: 0, 
-      scale: 1,
-      transition: { duration: 0.8, ease: 'easeOut' }
-    }
-  };
-
-  if (wishlist.length === 0) {
-    return (
-      <motion.div 
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
-        className="min-h-screen bg-white p-4 mt-[10vh]"
-      >
-        <div className="max-w-4xl mx-auto pt-8">
-          <motion.div variants={headerVariants} className="flex items-center gap-3 mb-8">
-            <div className="p-3 bg-black rounded-2xl shadow-lg">
-              <Heart className="w-6 h-6 text-white" />
-            </div>
-            <h1 className="text-3xl font-bold text-black">My Wishlist</h1>
-          </motion.div>
-
-          <motion.div variants={emptyStateVariants} className="text-center py-16">
-            <div className="relative w-32 h-32 mx-auto mb-6">
-              <motion.div 
-                animate={{ 
-                  scale: [1, 1.05, 1],
-                  rotate: [0, 5, -5, 0]
-                }}
-                transition={{ 
-                  duration: 4, 
-                  repeat: Infinity, 
-                  ease: 'easeInOut' 
-                }}
-                className="w-32 h-32 bg-gradient-to-br from-gray-50 to-gray-200 rounded-full flex items-center justify-center shadow-lg"
-              >
-                <Heart className="w-16 h-16 text-gray-400" />
-              </motion.div>
-            </div>
-            <h2 className="text-2xl font-bold text-black mb-2">Your wishlist is empty</h2>
-            <p className="text-gray-600 mb-8">Save items you love for later</p>
-            <Button to="/products" className="shadow-lg hover:shadow-xl">
-              Explore Products
-            </Button>
-          </motion.div>
-        </div>
-      </motion.div>
-    );
-  }
+  if (loading) return <Loading />;
 
   return (
-    <motion.div 
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-      className="min-h-screen bg-gradient-to-br from-white via-gray-50 to-white p-4"
-    >
-      <div className="max-w-7xl mx-auto pt-8">
-        {/* Header */}
-        <motion.div 
-          variants={headerVariants}
-          className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8"
-        >
-          <div className="flex items-center gap-4">
-            <Button to="/" primary={false} className="p-2 border border-gray-200 rounded-xl hover:bg-gray-50 shadow-sm">
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-black rounded-2xl shadow-lg">
-                <Heart className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold text-black">My Wishlist</h1>
-                <motion.p 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.5 }}
-                  className="text-gray-600 flex items-center gap-2 mt-1"
-                >
-                  <Sparkles className="w-4 h-4" />
-                  {wishlist.length} {wishlist.length === 1 ? 'item' : 'items'} saved
-                </motion.p>
-              </div>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-screen bg-white p-4 md:p-8">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex items-center gap-4 mb-8">
+          <Button onClick={() => navigate("/")} className="p-2 border rounded-lg hover:bg-gray-100">
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <div className="flex items-center gap-3">
+            <Heart className="w-8 h-8 text-black" />
+            <div>
+              <h1 className="text-3xl font-bold">Wishlist</h1>
+              <p className="text-gray-600">{wishlist.length} items</p>
             </div>
           </div>
-        </motion.div>
+        </div>
 
-        {/* Wishlist Grid */}
-        <motion.div 
-          variants={containerVariants}
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-        >
-          <AnimatePresence>
-            {wishlist.map((item, index) => (
-              <Card
-                key={item._id}
-                item={item}
-                type="wishlist"
-                index={index}
-                onRemove={handleRemoveClick}
-                onMoveToCart={handleMoveToCart}
-                isRemoving={removingItem === item._id}
-                isMoving={movingToCart === item._id}
-              />
-            ))}
-          </AnimatePresence>
-        </motion.div>
+        {wishlist.length === 0 ? (
+          <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="text-center py-24">
+            <Heart className="w-24 h-24 text-gray-300 mx-auto mb-6" />
+            <h2 className="text-2xl font-bold mb-2">Your wishlist is empty</h2>
+            <p className="text-gray-600 mb-8">Save items you love</p>
+            <Button onClick={() => navigate("/")} className="bg-black text-white px-8 py-3 rounded-lg">
+              Browse Products
+            </Button>
+          </motion.div>
+        ) : (
+          <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <AnimatePresence>
+              {wishlist.map((item, index) => (
+                <motion.div
+                  key={item._id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, x: -100 }}
+                  transition={{ delay: index * 0.04 }}
+                  className="bg-white border rounded-xl p-4 flex flex-col"
+                >
+                  <img
+                    src={item.images?.[0]?.url || "/placeholder.jpg"}
+                    alt={item.name}
+                    className="w-full h-40 object-cover rounded-lg mb-4"
+                  />
+                  <h3 className="font-bold mb-2">{item.name}</h3>
+                  <p className="text-gray-600 text-sm mb-4">{item.category}</p>
+                  <div className="flex gap-2 mt-auto">
+                    <Button onClick={() => openAddCart(item._id)} className="flex-1" icon={<ShoppingBag className="w-4 h-4" />}>
+                      Add to Cart
+                    </Button>
+                    <Button onClick={() => handleConfirmOpen(item)} variant="outline" icon={<Trash2 className="w-4 h-4" />} />
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        )}
       </div>
 
-      {/* Confirmation Modal */}
       <ConfirmationModal
-        isOpen={modalConfig.isOpen}
-        onClose={handleModalClose}
+        isOpen={confirm.isOpen}
+        onClose={handleConfirmClose}
         onConfirm={handleConfirmRemove}
         title="Remove from Wishlist"
-        message={`Remove "${modalConfig.item?.name}" from your wishlist?`}
+        message="Remove this item from your wishlist?"
         confirmText="Remove"
-        cancelText="Keep Item"
-        loading={modalConfig.loading}
+        cancelText="Cancel"
+      />
+
+      <AddCartModal
+        isOpen={addCart.isOpen}
+        onClose={closeAddCart}
+        productId={addCart.productId}
+        onAddToCart={handleAddToCartFromModal}
+        onSuccess={() => {
+          /* handled inside handleAddToCartFromModal */
+        }}
       />
     </motion.div>
   );
