@@ -46,7 +46,7 @@ const isPublicEndpoint = (url) => {
 
 const api = axios.create({
   baseURL: conf.baseUrl,
-  timeout: 15000,
+  timeout: 50000,
   headers: { 'Content-Type': 'application/json' },
   withCredentials: true,
 });
