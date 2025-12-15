@@ -13,23 +13,22 @@ import AuthModelProvider from './context/AuthModelContext.jsx'
 
 
 createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <BrowserRouter>
-      <AuthModelProvider>
-        <SocketProvider>
-          <AuthProvider>
-            <ProductProvider>
-              <CartWishlistProvider>
-                <ReviewProvider>
-                  <CouponProvider>
-                    <App />
-                  </CouponProvider>
-                </ReviewProvider>
-              </CartWishlistProvider>
-            </ProductProvider>
-          </AuthProvider>
-        </SocketProvider>
-      </AuthModelProvider>
-    </BrowserRouter>
-  </StrictMode >,
+  <BrowserRouter>
+    <AuthModelProvider>
+      <SocketProvider>
+        <AuthProvider>
+          <ProductProvider>
+            <CartWishlistProvider>
+              <ReviewProvider>
+                <CouponProvider>
+                  <App />
+                </CouponProvider>
+              </ReviewProvider>
+            </CartWishlistProvider>
+          </ProductProvider>
+        </AuthProvider>
+      </SocketProvider>
+    </AuthModelProvider>
+  </BrowserRouter>
+  ,
 )

@@ -1,6 +1,6 @@
 const conf = ({
-    baseUrl: String(import.meta.env.VITE_BASE_URL || "http://localhost:8000/api"),
-    socketUrl: String(import.meta.env.VITE_SOCKET_URL || "http://localhost:8000")
+    baseUrl: String(import.meta.env.VITE_BASE_URL),
+    socketUrl: String(import.meta.env.VITE_SOCKET_URL)
 })
  
 export default conf;
