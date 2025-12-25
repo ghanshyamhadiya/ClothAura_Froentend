@@ -145,6 +145,16 @@ export const getProductById = async (id) => {
   }
 };
 
+export const getProductByCategory = async (id) => {
+  try {
+    const response = await api.get(`/products/public/category/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching product by category:', error);
+    throw error;
+  }
+};
+
 // Delete product
 export const deleteProducts = async (id) => {
   try {

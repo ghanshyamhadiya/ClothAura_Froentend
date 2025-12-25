@@ -337,6 +337,22 @@ export const ProductProvider = ({ children }) => {
     }
   }, [saveProductsToCache]);
 
+  const findProductsCategory = useCallback(async (id) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await getProductByCategory(id);
+      console.log('Products by category fetched:', data);
+      setProducts(data);
+      saveProductsToCache(data);
+    } catch (err) {
+      setError(err.message || "Failed to fetch products by category");
+      toastService.error(err.message || "Failed to fetch products by category");
+    } finally {
+      setLoading(false);
+    }
+  }, [saveProductsToCache]);
+
   const searchProducts = useCallback(async (query, options = {}) => {
     if (!query.trim()) {
       setSearchResults(null);
@@ -578,6 +594,7 @@ export const ProductProvider = ({ children }) => {
     createProduct,
     updateProduct,
     deleteProduct,
+    findProductsCategory,
     clearError,
     loadMoreProducts,
     hasMore,

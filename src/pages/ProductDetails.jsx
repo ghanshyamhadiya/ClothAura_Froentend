@@ -12,13 +12,13 @@ import {
   Star,
   Minus,
   Plus,
-  Check,
   CreditCard,
   Wallet,
 } from "lucide-react";
 
 import ProductImageScroller from "../components/products/ProductImageScroller";
 import ProductReviewsLazy from "../components/products/ProductReviewsLazy";
+import HorizontalProductCarousel from "../components/products/HorizontalProductCarousel";
 import Loading from "../components/Loading";
 import Button from "../components/Button";
 
@@ -27,6 +27,7 @@ import { useCartWishlist } from "../context/CartWhislistContext";
 import { useReview } from "../context/ReviewContext";
 import { useAuth } from "../context/AuthContext";
 import { useAuthModel } from "../context/AuthModelContext";
+import { useProducts } from "../context/ProductContext";
 import { toastService } from "../services/toastService";
 
 const paymentMethodIcons = {
@@ -41,6 +42,7 @@ const ProductDetails = () => {
   const navigate = useNavigate();
   const { openModel } = useAuthModel();
   const { isAuthenticated } = useAuth();
+  const { products } = useProducts();
 
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -51,6 +53,7 @@ const ProductDetails = () => {
   const [showFullDesc, setShowFullDesc] = useState(false);
   const [showSizeError, setShowSizeError] = useState(false);
   const [isReviewsOpen, setIsReviewsOpen] = useState(false);
+  const [relatedProducts, setRelatedProducts] = useState([]);
 
   const { productStats } = useReview();
   const {
@@ -98,6 +101,16 @@ const ProductDetails = () => {
     fetchProduct();
   }, [id, isAuthenticated, isInWishlist, navigate]);
 
+  // Get related products (same category, different product)
+  useEffect(() => {
+    if (product && products.length > 0) {
+      const related = products
+        .filter(p => p._id !== product._id && p.category === product.category)
+        .slice(0, 6);
+      setRelatedProducts(related);
+    }
+  }, [product, products]);
+
   useEffect(() => {
     if (selectedVariant?.sizes) {
       const firstInStock = selectedVariant.sizes.findIndex((s) => s.stock > 0);
@@ -140,6 +153,11 @@ const ProductDetails = () => {
     }
   };
 
+  const handleRelatedProductClick = (relatedProduct) => {
+    navigate(`/product/${relatedProduct._id}`);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   if (loading) return <Loading />;
   if (!product) return null;
 
@@ -148,15 +166,15 @@ const ProductDetails = () => {
       <style jsx global>{`html { scroll-behavior: smooth; }`}</style>
 
       <div className="min-h-screen bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Mobile: Image First | Desktop: Side by Side */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-16">
-            {/* IMAGE GALLERY – Always on top on mobile */}
+            {/* IMAGE GALLERY */}
             <div className="order-1 md:order-none">
               <ProductImageScroller images={images.length ? images : ["/placeholder.jpg"]} />
             </div>
 
-            {/* PRODUCT INFO – Below image on mobile */}
+            {/* PRODUCT INFO */}
             <div className="order-2 md:order-none space-y-8">
               {/* Title & Rating */}
               <div>
@@ -302,7 +320,7 @@ const ProductDetails = () => {
                 </div>
               )}
 
-              {/* CTA BUTTONS – Right after quantity */}
+              {/* CTA BUTTONS */}
               <div className="pt-6 flex gap-4">
                 <Button
                   onClick={handleAddToCart}
@@ -332,20 +350,22 @@ const ProductDetails = () => {
               </div>
 
               {/* Payment Methods */}
-              <div className="bg-gray-50 rounded-xl p-5 border">
-                <p className="text-sm font-semibold mb-3">Payment Options</p>
-                <div className="grid grid-cols-2 gap-3">
-                  {product.allowedPaymentMethods?.map((method) => {
-                    const Icon = paymentMethodIcons[method];
-                    return (
-                      <div key={method} className="flex items-center gap-2 p-3 bg-white rounded-lg border">
-                        <Icon.icon size={18} />
-                        <span className="text-xs font-medium">{Icon.label}</span>
-                      </div>
-                    );
-                  })}
+              {product.allowedPaymentMethods && product.allowedPaymentMethods.length > 0 && (
+                <div className="bg-gray-50 rounded-xl p-5 border">
+                  <p className="text-sm font-semibold mb-3">Payment Options</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {product.allowedPaymentMethods.map((method) => {
+                      const Icon = paymentMethodIcons[method];
+                      return Icon ? (
+                        <div key={method} className="flex items-center gap-2 p-3 bg-white rounded-lg border">
+                          <Icon.icon size={18} />
+                          <span className="text-xs font-medium">{Icon.label}</span>
+                        </div>
+                      ) : null;
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Benefits */}
               <div className="py-6 border-t space-y-4">
@@ -431,6 +451,15 @@ const ProductDetails = () => {
             </AnimatePresence>
           </div>
         </div>
+
+        {/* Related Products Carousel */}
+        {relatedProducts.length > 0 && (
+          <HorizontalProductCarousel
+            products={relatedProducts}
+            title="You May Also Like"
+            onProductClick={handleRelatedProductClick}
+          />
+        )}
       </div>
     </>
   );

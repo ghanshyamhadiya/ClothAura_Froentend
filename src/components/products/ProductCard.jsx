@@ -5,11 +5,24 @@ import { Star } from 'lucide-react';
 const ProductCard = ({ product, onClick }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
 
+  // FIXED: Properly compute if product is in stock
+  const isInStock = useMemo(() => {
+    // If backend already provides inStock, trust it
+    if (typeof product.inStock === 'boolean') {
+      return product.inStock;
+    }
+
+    // Otherwise, check variants → sizes → stock
+    return product.variants?.some(variant =>
+      variant.sizes?.some(size => size.stock > 0)
+    ) ?? false;
+  }, [product.variants, product.inStock]);
+
   const discountPercentage = useMemo(() => {
     if (product.originalPrice && product.price) {
       const original = parseFloat(String(product.originalPrice).replace(/[^0-9.-]+/g, ''));
       const current = parseFloat(String(product.price).replace(/[^0-9.-]+/g, ''));
-      if (original > current) {
+      if (original > current && original > 0) {
         return Math.round(((original - current) / original) * 100);
       }
     }
@@ -23,22 +36,19 @@ const ProductCard = ({ product, onClick }) => {
   };
 
   const getProductImage = () => {
+    // Try first variant's first image
     const variant = product.variants?.[0];
     const firstImage = variant?.images?.[0] || product.images?.[0];
 
-    if (typeof firstImage === 'string') {
-      return firstImage;
-    }
+    if (typeof firstImage === 'string') return firstImage;
+    if (firstImage?.url) return firstImage.url;
 
-    if (firstImage && firstImage.url) {
-      return firstImage.url;
-    }
-
+    // Fallback
     return 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&h=500&fit=crop';
   };
 
   const rating = product.averageRating || product.rating || 0;
-  const totalReviews = product.totalReviews || product.reviews || 0;
+  const totalReviews = product.totalReviews || product.reviews?.length || 0;
 
   return (
     <motion.div
@@ -67,8 +77,7 @@ const ProductCard = ({ product, onClick }) => {
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           loading="lazy"
           initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.3 }}
+          animate={{ opacity: imageLoaded ? 1 : 0 }}
           onLoad={() => setImageLoaded(true)}
           onError={(e) => {
             e.target.onerror = null;
@@ -77,6 +86,7 @@ const ProductCard = ({ product, onClick }) => {
           }}
         />
 
+        {/* Badges */}
         <div className="absolute top-3 left-3 flex flex-col gap-2 z-10">
           {product.isNew && (
             <motion.span
@@ -99,13 +109,14 @@ const ProductCard = ({ product, onClick }) => {
           )}
         </div>
 
+        {/* Out of Stock Overlay - NOW CORRECT */}
         <AnimatePresence>
-          {!product.inStock && (
+          {!isInStock && (
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/40 flex items-center justify-center"
+              className="absolute inset-0 bg-black/40 flex items-center justify-center backdrop-blur-sm"
             >
               <span className="bg-white text-black text-sm px-4 py-2 rounded-md font-semibold shadow-lg">
                 Out of Stock
@@ -114,6 +125,7 @@ const ProductCard = ({ product, onClick }) => {
           )}
         </AnimatePresence>
 
+        {/* Hover "View Details" */}
         <motion.div
           className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center pb-4"
           initial={false}
@@ -147,8 +159,7 @@ const ProductCard = ({ product, onClick }) => {
                 <Star
                   key={i}
                   size={16}
-                  className={i < Math.floor(rating) ? 'text-black' : 'text-gray-300'}
-                  fill="currentColor"
+                  className={i < Math.floor(rating) ? 'text-black fill-black' : 'text-gray-300'}
                 />
               ))}
             </div>
@@ -172,8 +183,9 @@ const ProductCard = ({ product, onClick }) => {
           )}
         </div>
 
+        {/* Stock Status Text - NOW CORRECT */}
         <div className="mt-auto">
-          {product.inStock ? (
+          {isInStock ? (
             <span className="text-xs text-gray-700 font-medium flex items-center gap-1">
               <span className="w-2 h-2 bg-black rounded-full"></span>
               In Stock
