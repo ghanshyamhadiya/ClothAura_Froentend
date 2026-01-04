@@ -1,14 +1,22 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Search, X, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import Input from '../Input';
 import { getAutocomplete } from '../../services/productService';
 
-function SearchBar({ onSearch, searchQuery, setSearchQuery }) {
+function SearchBar({ 
+  onSearch, 
+  searchQuery, 
+  setSearchQuery,
+  placeholder = "Search products...",
+  className = "",
+  showAutocomplete = true,
+}) {
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [isFocused, setIsFocused] = useState(false);
+  
   const debounceTimeoutRef = useRef(null);
   const autocompleteTimeoutRef = useRef(null);
   const wrapperRef = useRef(null);
@@ -17,6 +25,7 @@ function SearchBar({ onSearch, searchQuery, setSearchQuery }) {
     const handleClickOutside = (event) => {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
         setShowSuggestions(false);
+        setIsFocused(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -32,10 +41,10 @@ function SearchBar({ onSearch, searchQuery, setSearchQuery }) {
     if (autocompleteTimeoutRef.current) clearTimeout(autocompleteTimeoutRef.current);
 
     debounceTimeoutRef.current = setTimeout(() => {
-      onSearch(value);
+      if (onSearch) onSearch(value);
     }, 500);
 
-    if (value.trim().length >= 2) {
+    if (showAutocomplete && getAutocomplete && value.trim().length >= 2) {
       setLoadingSuggestions(true);
       autocompleteTimeoutRef.current = setTimeout(async () => {
         try {
@@ -57,7 +66,7 @@ function SearchBar({ onSearch, searchQuery, setSearchQuery }) {
 
   const handleClear = () => {
     setSearchQuery('');
-    onSearch('');
+    if (onSearch) onSearch('');
     setSuggestions([]);
     setShowSuggestions(false);
     setSelectedIndex(-1);
@@ -65,7 +74,7 @@ function SearchBar({ onSearch, searchQuery, setSearchQuery }) {
 
   const handleSuggestionClick = (suggestion) => {
     setSearchQuery(suggestion.name);
-    onSearch(suggestion.name);
+    if (onSearch) onSearch(suggestion.name);
     setShowSuggestions(false);
     setSuggestions([]);
   };
@@ -95,72 +104,113 @@ function SearchBar({ onSearch, searchQuery, setSearchQuery }) {
   }, []);
 
   return (
-    <div ref={wrapperRef} className="relative w-full">
-      <div className="relative">
-        <Input
+    <div ref={wrapperRef} className={`relative w-full ${className}`}>
+      <div className="relative group">
+        {/* Input Field */}
+        <input
           type="text"
           value={searchQuery}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
-          onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
-          placeholder="Search products..."
-          className="pr-12 pl-10"
-          style={{ transition: 'all 0.2s ease' }}
+          onFocus={() => {
+            setIsFocused(true);
+            if (suggestions.length > 0) setShowSuggestions(true);
+          }}
+          onBlur={() => setIsFocused(false)}
+          placeholder={placeholder}
+          className={`
+            w-full px-4 py-2.5 sm:py-3 pl-10 sm:pl-12 pr-10 sm:pr-12
+            text-sm sm:text-base text-black
+            bg-white border-2 rounded-lg
+            outline-none transition-all duration-300 ease-out
+            ${isFocused 
+              ? 'border-black shadow-lg scale-[1.02]' 
+              : 'border-gray-300 hover:border-gray-400 shadow-sm'
+            }
+            placeholder:text-gray-500
+          `}
         />
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
         
-        <AnimatePresence>
-          {loadingSuggestions && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute right-12 top-1/2 -translate-y-1/2"
-            >
-              <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {searchQuery && !loadingSuggestions && (
-          <motion.button
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={handleClear}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+        {/* Search Icon */}
+        <div className={`
+          absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 
+          transition-all duration-300
+          ${isFocused ? 'text-black scale-110' : 'text-gray-500'}
+        `}>
+          <Search className="w-4 h-4 sm:w-5 sm:h-5" />
+        </div>
+        
+        {/* Loading Spinner */}
+        {loadingSuggestions && (
+          <div 
+            className="absolute right-10 sm:right-12 top-1/2 -translate-y-1/2 animate-in fade-in spin-in-180 duration-200"
           >
-            <X className="w-4 h-4" />
-          </motion.button>
+            <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600 animate-spin" />
+          </div>
+        )}
+
+        {/* Clear Button */}
+        {searchQuery && !loadingSuggestions && (
+          <button
+            onClick={handleClear}
+            className={`
+              absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 
+              text-gray-500 hover:text-black 
+              transition-all duration-200 hover:scale-110 active:scale-95
+              animate-in fade-in zoom-in duration-200
+            `}
+            aria-label="Clear search"
+          >
+            <X className="w-4 h-4 sm:w-5 sm:h-5" />
+          </button>
         )}
       </div>
 
-      <AnimatePresence>
-        {showSuggestions && suggestions.length > 0 && (
-          <motion.ul
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2 }}
-            className="absolute w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-xl z-50 max-h-60 overflow-y-auto"
-          >
-            {suggestions.map((sug, idx) => (
-              <motion.li
-                key={sug.id}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: idx * 0.05 }}
-                onClick={() => handleSuggestionClick(sug)}
-                className={`px-4 py-3 text-sm hover:bg-gray-50 cursor-pointer transition-colors ${
-                  idx === selectedIndex ? 'bg-gray-100' : ''
-                }`}
-              >
-                {sug.name}
-              </motion.li>
-            ))}
-          </motion.ul>
-        )}
-      </AnimatePresence>
+      {/* Suggestions Dropdown */}
+      {showSuggestions && suggestions.length > 0 && (
+        <div 
+          className="absolute w-full mt-2 bg-white border border-gray-300 rounded-lg shadow-xl z-50 max-h-60 sm:max-h-80 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200"
+        >
+          {suggestions.map((sug, idx) => (
+            <div
+              key={sug.id}
+              onClick={() => handleSuggestionClick(sug)}
+              className={`
+                px-4 py-2.5 sm:py-3 text-sm sm:text-base
+                cursor-pointer transition-all duration-150
+                border-b border-gray-200 last:border-b-0
+                ${idx === selectedIndex 
+                  ? 'bg-gray-900 text-white font-medium' 
+                  : 'hover:bg-gray-100 text-gray-900'
+                }
+              `}
+              style={{
+                animationDelay: `${idx * 30}ms`,
+                animation: 'fadeSlideIn 0.2s ease-out forwards',
+                opacity: 0
+              }}
+            >
+              <div className="flex items-center gap-2">
+                <Search className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${idx === selectedIndex ? 'text-gray-300' : 'text-gray-500'}`} />
+                <span className="truncate">{sug.name}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <style jsx>{`
+        @keyframes fadeSlideIn {
+          from {
+            opacity: 0;
+            transform: translateY(-4px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
     </div>
   );
 }

@@ -21,15 +21,67 @@ export const AuthProvider = ({ children }) => {
   const [hasChecked, setHasChecked] = useState(false);
   const [error, setError] = useState(null);
   const isCheckingAuth = useRef(false);
+  const refreshTimerRef = useRef(null);
 
-  // Get socket context
   const { authenticate: socketAuthenticate, isConnected } = useSocket();
 
   useEffect(() => {
-    checkAuthStatus();
+    const handleTokenRefreshFailed = () => {
+      console.log('Token refresh failed, logging out');
+      handleLogout();
+    };
+
+    window.addEventListener('auth:tokenRefreshFailed', handleTokenRefreshFailed);
+    return () => window.removeEventListener('auth:tokenRefreshFailed', handleTokenRefreshFailed);
   }, []);
 
-  // Handle socket authentication when token or connection changes
+  const setupTokenRefresh = useCallback(() => {
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current);
+    }
+
+    const token = authService.getToken();
+    if (!token) return;
+
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const expiresAt = payload.exp * 1000;
+      const now = Date.now();
+      const timeUntilExpiry = expiresAt - now;
+      const refreshTime = Math.max(timeUntilExpiry - 2 * 60 * 1000, 0);
+
+      console.log(`Token refresh scheduled in ${Math.round(refreshTime / 1000)}s`);
+
+      refreshTimerRef.current = setTimeout(async () => {
+        console.log('Proactively refreshing token...');
+        try {
+          await authService.refreshToken();
+          const newToken = authService.getToken();
+          
+          if (newToken && isConnected) {
+            socketAuthenticate(newToken);
+          }
+          
+          setupTokenRefresh();
+        } catch (error) {
+          console.error('Proactive token refresh failed:', error);
+          handleLogout();
+        }
+      }, refreshTime);
+    } catch (error) {
+      console.error('Error setting up token refresh:', error);
+    }
+  }, [isConnected, socketAuthenticate]);
+
+  useEffect(() => {
+    checkAuthStatus();
+    return () => {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     const token = authService.getToken();
     if (token && isConnected && isAuthenticated) {
@@ -37,71 +89,87 @@ export const AuthProvider = ({ children }) => {
     }
   }, [isConnected, isAuthenticated, socketAuthenticate]);
 
-  // Listen to socket auth events
   useEffect(() => {
     const handleSocketAuthError = (event) => {
       const { code } = event.detail || {};
       if (code === 'TOKEN_EXPIRED' || code === 'INVALID_TOKEN') {
-        console.log('Socket auth failed, logging out');
-        logout();
+        console.log('Socket auth failed, attempting refresh');
+        setupTokenRefresh();
       }
     };
 
     const handleSocketLogout = () => {
       console.log('Server initiated logout');
-      logout();
-    };
-
-    const handleSocketRefreshRequired = () => {
-      console.log('Token refresh required');
-      
-      const token = authService.getToken();
-      if (token && isConnected) {
-        socketAuthenticate(token);
-      }
+      handleLogout();
     };
 
     window.addEventListener('socket:authError', handleSocketAuthError);
     window.addEventListener('socket:serverLogout', handleSocketLogout);
-    window.addEventListener('socket:refreshRequired', handleSocketRefreshRequired);
 
     return () => {
       window.removeEventListener('socket:authError', handleSocketAuthError);
       window.removeEventListener('socket:serverLogout', handleSocketLogout);
-      window.removeEventListener('socket:refreshRequired', handleSocketRefreshRequired);
     };
-  }, [isConnected, socketAuthenticate]);
+  }, [isConnected, socketAuthenticate, setupTokenRefresh]);
 
   const checkAuthStatus = async () => {
     if (isCheckingAuth.current) return;
+    
     try {
       isCheckingAuth.current = true;
       setLoading(true);
       setError(null);
+      
       const token = authService.getToken();
+      
       if (token) {
         try {
           const userData = await authService.getUserByApi();
           setUser(userData);
           setAddresses(userData.addresses || []);
           setIsAuthenticated(true);
-          
-          // ✅ Mark that user was logged in
           localStorage.setItem('wasLoggedIn', 'true');
 
-          // Authenticate socket if connected
+          setupTokenRefresh();
+
           if (isConnected) {
             socketAuthenticate(token);
           }
         } catch (fetchError) {
           console.error("Failed to fetch user data:", fetchError);
-          if (fetchError.response?.status === 401 || fetchError.response?.status === 403) {
-            localStorage.removeItem("accessToken");
-            localStorage.removeItem("wasLoggedIn"); // Clear flag
-            setIsAuthenticated(false);
-            setUser(null);
-            setAddresses([]);
-          } else {
+          
+          if (fetchError.response?.status === 401) {
+            try {
+              console.log('Access token expired, attempting refresh...');
+              await authService.refreshToken();
+              const newToken = authService.getToken();
+              
+              if (newToken) {
+                const userData = await authService.getUserByApi();
+                setUser(userData);
+                setAddresses(userData.addresses || []);
+                setIsAuthenticated(true);
+                localStorage.setItem('wasLoggedIn', 'true');
+                
+                setupTokenRefresh();
+                
+                if (isConnected) {
+                  socketAuthenticate(newToken);
+                }
+                return;
+              }
+            } catch (refreshError) {
+              console.error('Token refresh failed:', refreshError);
+            }
+          }
+          
+          localStorage.removeItem("accessToken");
+          localStorage.removeItem("wasLoggedIn");
+          setIsAuthenticated(false);
+          setUser(null);
+          setAddresses([]);
+          
+          if (fetchError.response?.status !== 401) {
             setError("Failed to load user data. Please try again.");
           }
         }
@@ -123,6 +191,30 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const handleLogout = useCallback(async () => {
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current);
+    }
+    
+    try {
+      setLoading(true);
+      setError(null);
+      await authService.logout();
+      toastService.success('Logout successful');
+    } catch (error) {
+      console.error("Logout failed:", error);
+      toastService.error(error.message || 'Logout failed');
+    } finally {
+      setUser(null);
+      setAddresses([]);
+      setIsAuthenticated(false);
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("wasLoggedIn");
+      setLoading(false);
+      setHasChecked(true);
+    }
+  }, []);
+
   const login = async (credentials) => {
     try {
       setLoading(true);
@@ -132,15 +224,15 @@ export const AuthProvider = ({ children }) => {
       setUser(userData);
       setAddresses(userData.addresses || []);
       setIsAuthenticated(true);
-      
-      // ✅ Mark that user has logged in successfully
       localStorage.setItem('wasLoggedIn', 'true');
 
-      // Authenticate socket with new token
+      setupTokenRefresh();
+
       const token = authService.getToken();
       if (token && isConnected) {
         socketAuthenticate(token);
       }
+      
       toastService.success('Login successful');
       return response;
     } catch (error) {
@@ -166,15 +258,15 @@ export const AuthProvider = ({ children }) => {
       setUser(user);
       setAddresses(user.addresses || []);
       setIsAuthenticated(true);
-      
-      // ✅ Mark that user has registered successfully
       localStorage.setItem('wasLoggedIn', 'true');
 
-      // Authenticate socket with new token
+      setupTokenRefresh();
+
       const token = authService.getToken();
       if (token && isConnected) {
         socketAuthenticate(token);
       }
+      
       toastService.success('Registration successful');
       return response;
     } catch (error) {
@@ -186,29 +278,6 @@ export const AuthProvider = ({ children }) => {
       toastService.error(error.message || 'Registration failed');
       throw error;
     } finally {
-      setLoading(false);
-      setHasChecked(true);
-    }
-  };
-
-  const logout = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      await authService.logout();
-      toastService.success('Logout successful');
-    } catch (error) {
-      console.error("Logout failed:", error);
-      toastService.error(error.message || 'Logout failed');
-    } finally {
-      setUser(null);
-      setAddresses([]);
-      setIsAuthenticated(false);
-      
-      // ✅ Clear both tokens and the login flag
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("wasLoggedIn");
-      
       setLoading(false);
       setHasChecked(true);
     }
@@ -226,9 +295,9 @@ export const AuthProvider = ({ children }) => {
           setUser(userData);
           setAddresses(userData.addresses || []);
           setIsAuthenticated(true);
-          
-          // ✅ Mark that user is now authenticated
           localStorage.setItem('wasLoggedIn', 'true');
+
+          setupTokenRefresh();
 
           const authToken = authService.getToken();
           if (authToken && isConnected) {
@@ -238,7 +307,7 @@ export const AuthProvider = ({ children }) => {
         toastService.success('Email verified successfully');
       }
 
-      return (await response);
+      return response;
     } catch (error) {
       console.error("Email verification failed:", error);
       setError(error.message);
@@ -256,7 +325,7 @@ export const AuthProvider = ({ children }) => {
       setError(null);
       const response = await authService.resendVerificationEmail();
       toastService.success('Verification email resent successfully');
-      toastService.info('Please check your inbox and spam folder before 15 minutes');
+      toastService.info('Please check your inbox and spam folder');
       return response;
     } catch (error) {
       setError(error.message);
@@ -266,7 +335,7 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
       setHasChecked(true);
     }
-  }
+  };
   
   const fetchAndSetUser = async () => {
     try {
@@ -275,11 +344,10 @@ export const AuthProvider = ({ children }) => {
       setAddresses(userData.addresses || []);
       setIsAuthenticated(true);
       setError(null);
-      
-      // ✅ Mark that user is authenticated
       localStorage.setItem('wasLoggedIn', 'true');
 
-      // Authenticate socket if connected
+      setupTokenRefresh();
+
       const token = authService.getToken();
       if (token && isConnected) {
         socketAuthenticate(token);
@@ -293,7 +361,7 @@ export const AuthProvider = ({ children }) => {
         setAddresses([]);
         setIsAuthenticated(false);
         localStorage.removeItem("accessToken");
-        localStorage.removeItem("wasLoggedIn"); // Clear flag
+        localStorage.removeItem("wasLoggedIn");
       }
       setError(error.message);
       throw error;
@@ -404,7 +472,7 @@ export const AuthProvider = ({ children }) => {
     hasChecked,
     error,
     login,
-    logout,
+    logout: handleLogout,
     register,
     verifyEmail,
     fetchAndSetUser,

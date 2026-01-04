@@ -66,28 +66,6 @@ const Cart = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-8">
-      {/* Header */}
-      <div className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 py-5">
-          <div className="flex items-center gap-4">
-            <Button
-              onClick={() => navigate(-1)}
-              className="p-2 rounded-full hover:bg-gray-100 transition"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-black rounded-2xl">
-                <ShoppingBag className="w-7 h-7 text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold">My Cart</h1>
-                <p className="text-sm text-gray-600">{getCartItemCount()} items</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
 
       {cart.length === 0 ? (
         <motion.div

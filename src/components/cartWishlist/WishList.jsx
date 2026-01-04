@@ -44,18 +44,6 @@ const WishList = () => {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-screen bg-white p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
-        <div className="flex items-center gap-4 mb-8">
-          <Button onClick={() => navigate("/")} className="p-2 border rounded-lg hover:bg-gray-100">
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <div className="flex items-center gap-3">
-            <Heart className="w-8 h-8 text-black" />
-            <div>
-              <h1 className="text-3xl font-bold">Wishlist</h1>
-              <p className="text-gray-600">{wishlist.length} items</p>
-            </div>
-          </div>
-        </div>
 
         {wishlist.length === 0 ? (
           <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="text-center py-24">

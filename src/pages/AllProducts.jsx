@@ -5,7 +5,6 @@ import { Link } from 'react-router-dom';
 import { useInView } from 'react-intersection-observer';
 
 import { useProducts } from '../context/ProductContext';
-import SearchBar from '../components/common/SearchBar';
 import Loading from '../components/Loading';
 import ProductCard from '../components/products/ProductCard';
 
@@ -39,22 +38,6 @@ function AllProduct() {
     }
   }, [inView, hasMore, loadingMore, loadMoreProducts, searchResults]);
 
-  const handleSearch = async (query) => {
-    setSearchQuery(query);
-
-    if (query.trim() === '') {
-      clearSearch();
-      return;
-    }
-
-    setIsSearching(true);
-
-    // Artificial 1.5-second delay + your beautiful Loading component
-    await new Promise(resolve => setTimeout(resolve, 1500));
-
-    searchProducts(query);
-    setIsSearching(false);
-  };
 
   const displayProducts = searchResults !== null ? searchResults : products;
 
@@ -65,34 +48,6 @@ function AllProduct() {
 
   return (
     <div className="">
-      {/* Hero Section with Search */}
-      <div className="bg-white">
-        <div className="mx-auto px-4 py-3 sm:py-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="text-center space-y-4"
-          >
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Discover premium clothing with free delivery & easy returns
-            </p>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="mt-8 max-w-2xl mx-auto"
-          >
-            <SearchBar
-              onSearch={handleSearch}
-              searchQuery={searchQuery}
-              setSearchQuery={setSearchQuery}
-            />
-          </motion.div>
-        </div>
-      </div>
 
       <div className="max-w-7xl mx-auto px-4 py-2 sm:py-5">
         {/* Search Loading State */}

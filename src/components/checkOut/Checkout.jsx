@@ -1,4 +1,3 @@
-// src/components/checkout/Checkout.jsx
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { motion } from 'framer-motion';
@@ -22,7 +21,6 @@ import { toastService } from '../../services/toastService';
 import Loading from '../Loading';
 
 const Checkout = () => {
-  // contexts
   const {
     cart: ctxCart = [],
     updateCartQuantity,
@@ -60,8 +58,6 @@ const Checkout = () => {
   const cart = Array.isArray(ctxCart) ? ctxCart : [];
   const addresses = Array.isArray(ctxAddresses) ? ctxAddresses : [];
 
-  // Determine available payment methods across all products in cart.
-  // Start with the full set and filter down based on each product's allowedPaymentMethods.
   const availablePaymentMethods = cart.reduce((acc, item) => {
     const productMethods = (item.product && item.product.allowedPaymentMethods) || ['cod', 'card', 'upi', 'wallet'];
     return acc.filter((method) => productMethods.includes(method));
@@ -257,16 +253,6 @@ const Checkout = () => {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-screen bg-white p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
-          <Button onClick={() => navigate('/cart')} className="p-2 border rounded-lg hover:bg-gray-100">
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <div className="flex items-center gap-3">
-            <ShoppingBag className="w-8 h-8 text-black" />
-            <h1 className="text-3xl font-bold">Checkout</h1>
-          </div>
-        </div>
 
         <div className="grid md:grid-cols-2 gap-8">
           {/* Left: Items, Address, Payment */}
