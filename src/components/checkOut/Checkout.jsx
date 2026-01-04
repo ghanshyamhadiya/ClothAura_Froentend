@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   ShoppingBag,
   ArrowLeft,
@@ -51,6 +51,7 @@ const Checkout = () => {
   const [applyingCoupon, setApplyingCoupon] = useState(false);
   const [appliedCouponCode, setAppliedCouponCode] = useState('');
   const [updatedQuantities, setUpdatedQuantities] = useState({});
+  const [isDiscountAnimating, setIsDiscountAnimating] = useState(false);
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -69,6 +70,14 @@ const Checkout = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [availablePaymentMethods.join(','), paymentMethod]); // join to avoid object/array identity issues
+
+  useEffect(() => {
+    if (discountAmount > 0) {
+      setIsDiscountAnimating(true);
+      const timer = setTimeout(() => setIsDiscountAnimating(false), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [discountAmount]);
 
   const handleQuantityChange = async (itemId, newQuantity) => {
     if (newQuantity < 1) return;
@@ -251,21 +260,36 @@ const Checkout = () => {
   if (cartLoading || authLoading) return <Loading />;
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-screen bg-white p-4 md:p-8">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5 }}
+      className="min-h-screen bg-white p-4 md:p-8"
+    >
       <div className="max-w-7xl mx-auto">
-
         <div className="grid md:grid-cols-2 gap-8">
           {/* Left: Items, Address, Payment */}
           <div className="space-y-8">
             {/* Cart Items */}
-            <div className="bg-gray-50 rounded-xl p-6">
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.1 }}
+              className="bg-gray-50 rounded-xl p-6 shadow-sm"
+            >
               <h2 className="text-2xl font-bold mb-6">Order Items</h2>
               {cart.length === 0 ? (
                 <p className="text-gray-600">Your cart is empty</p>
               ) : (
                 <div className="space-y-4">
-                  {cart.map((item) => (
-                    <div key={item._id} className="flex gap-4 border-b pb-4">
+                  {cart.map((item, index) => (
+                    <motion.div
+                      key={item._id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.1 + index * 0.05 }}
+                      className="flex gap-4 border-b pb-4 last:border-b-0"
+                    >
                       <img
                         src={item.product?.images?.[0]?.url || '/placeholder.jpg'}
                         alt={item.product?.name || 'product'}
@@ -276,49 +300,68 @@ const Checkout = () => {
                         <p className="text-gray-600 text-sm">
                           Variant: {item.variant?.color || '-'} • Size: {item.size?.size || '-'}
                         </p>
-                        <p className="font-bold mt-2">${(item.unitPrice ?? 0).toFixed(2)}</p>
+                        <p className="font-bold mt-2">₹{(item.unitPrice ?? 0).toFixed(2)}</p>
                         <div className="flex items-center gap-4 mt-2">
-                          <div className="flex border rounded-lg">
+                          <div className="flex border rounded-lg overflow-hidden">
                             <button
                               onClick={() => handleQuantityChange(item._id, (updatedQuantities[item._id] ?? item.quantity) - 1)}
-                              className="p-2 hover:bg-gray-100"
+                              className="p-2 hover:bg-gray-200 transition-colors"
                               disabled={(updatedQuantities[item._id] ?? item.quantity) <= 1}
                             >
                               <Minus className="w-4 h-4" />
                             </button>
-                            <span className="px-4 py-2">{updatedQuantities[item._id] ?? item.quantity}</span>
+                            <span className="px-4 py-2 bg-white">{updatedQuantities[item._id] ?? item.quantity}</span>
                             <button
                               onClick={() => handleQuantityChange(item._id, (updatedQuantities[item._id] ?? item.quantity) + 1)}
-                              className="p-2 hover:bg-gray-100"
+                              className="p-2 hover:bg-gray-200 transition-colors"
                             >
                               <Plus className="w-4 h-4" />
                             </button>
                           </div>
                         </div>
                       </div>
-                    </div>
+                    </motion.div>
                   ))}
                 </div>
               )}
-            </div>
+            </motion.div>
 
             {/* Address */}
-            <div className="bg-gray-50 rounded-xl p-6">
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.2 }}
+              className="bg-gray-50 rounded-xl p-6 shadow-sm"
+            >
               <h2 className="text-2xl font-bold mb-6">Delivery Address</h2>
               <div className="space-y-4">
                 {addresses.length === 0 ? (
                   <p className="text-gray-600">No saved addresses</p>
                 ) : (
-                  addresses.map((addr) => (
-                    <div key={addr._id} className="flex gap-4 border p-4 rounded-lg">
-                      <input type="radio" checked={selectedAddress?._id === addr._id} onChange={() => handleAddressSelect(addr)} />
+                  addresses.map((addr, index) => (
+                    <motion.div
+                      key={addr._id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.2 + index * 0.05 }}
+                      className={`flex gap-4 border p-4 rounded-lg cursor-pointer transition-shadow ${
+                        selectedAddress?._id === addr._id ? 'border-gray-400 shadow-md' : 'hover:shadow-md'
+                      }`}
+                      onClick={() => handleAddressSelect(addr)}
+                    >
+                      <input
+                        type="radio"
+                        checked={selectedAddress?._id === addr._id}
+                        onChange={() => {}}
+                        className="cursor-pointer"
+                      />
                       <div>
                         <p className="font-bold">{addr.street}</p>
                         <p className="text-gray-600">
                           {addr.city}, {addr.state} {addr.postalCode}
                         </p>
                       </div>
-                    </div>
+                    </motion.div>
                   ))
                 )}
 
@@ -326,71 +369,117 @@ const Checkout = () => {
                   Add New Address
                 </Button>
               </div>
-            </div>
+            </motion.div>
 
             {/* Payment */}
-            <div className="bg-gray-50 rounded-xl p-6">
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.3 }}
+              className="bg-gray-50 rounded-xl p-6 shadow-sm"
+            >
               <h2 className="text-2xl font-bold mb-6">Payment Method</h2>
               <div className="space-y-4">
-                {paymentOptions.map((option) => {
+                {paymentOptions.map((option, index) => {
                   const IconComp = option.icon;
+                  const isAvailable = availablePaymentMethods.includes(option.id);
                   return (
-                    <div key={option.id} className="flex gap-4 border p-4 rounded-lg items-center">
+                    <motion.div
+                      key={option.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.3 + index * 0.05 }}
+                      className={`flex gap-4 border p-4 rounded-lg items-center cursor-pointer transition-shadow ${
+                        !isAvailable ? 'opacity-50 cursor-not-allowed' : 
+                        paymentMethod === option.id ? 'border-gray-400 shadow-md' : 'hover:shadow-md'
+                      }`}
+                      onClick={() => isAvailable && handlePaymentMethodChange(option.id)}
+                    >
                       <input
                         type="radio"
                         checked={paymentMethod === option.id}
-                        onChange={() => handlePaymentMethodChange(option.id)}
-                        disabled={!availablePaymentMethods.includes(option.id)}
+                        onChange={() => {}}
+                        disabled={!isAvailable}
+                        className="cursor-pointer"
                       />
-                      <IconComp className="w-6 h-6" />
+                      <IconComp className="w-6 h-6 text-gray-700" />
                       <div>
                         <p className="font-bold">{option.name}</p>
                         <p className="text-gray-600 text-sm">{option.description}</p>
                       </div>
-                    </div>
+                    </motion.div>
                   );
                 })}
               </div>
-            </div>
+            </motion.div>
           </div>
 
           {/* Right: Summary */}
-          <div className="bg-gray-50 rounded-xl p-6 space-y-4 sticky top-20">
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.4 }}
+            className="bg-gray-50 rounded-xl p-6 space-y-4 sticky top-20 shadow-sm"
+          >
             <h2 className="text-2xl font-bold">Summary</h2>
             <div className="flex justify-between text-gray-600">
               <span>Subtotal</span>
-              <span>${subtotal.toFixed(2)}</span>
+              <span>₹{subtotal.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-gray-600">
               <span>GST (18%)</span>
-              <span>${gst.toFixed(2)}</span>
+              <span>₹{gst.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between text-gray-600">
-              <span>Discount</span>
-              <span>-${discountAmount.toFixed(2)}</span>
-            </div>
+            <AnimatePresence>
+              <motion.div
+                key="discount"
+                className="flex justify-between text-gray-600"
+                initial={{ scale: 1 }}
+                animate={isDiscountAnimating ? { scale: [1, 1.1, 1], color: '#111827' } : { scale: 1 }}
+                transition={{ duration: 0.5 }}
+              >
+                <span>Discount</span>
+                <span className={discountAmount > 0 ? 'font-bold text-gray-900' : ''}>-₹{discountAmount.toFixed(2)}</span>
+              </motion.div>
+            </AnimatePresence>
             <div className="flex justify-between font-bold text-xl">
               <span>Total</span>
-              <span>${finalTotal.toFixed(2)}</span>
+              <span>₹{finalTotal.toFixed(2)}</span>
             </div>
 
             {/* Coupon */}
-            <div className="mt-4">
-              <input
-                placeholder="Coupon Code"
-                value={couponCode}
-                onChange={(e) => setCouponCode(e.target.value)}
-                className="w-full p-3 border rounded-lg mb-2"
-              />
-              <Button onClick={handleCouponApply} className="w-full" disabled={applyingCoupon}>
-                Apply Coupon
+            <div className="mt-4 space-y-2">
+              <div className="relative">
+                <input
+                  placeholder="Coupon Code"
+                  value={couponCode}
+                  onChange={(e) => setCouponCode(e.target.value)}
+                  className="w-full p-3 border rounded-lg mb-2"
+                />
+                {appliedCouponCode && (
+                  <motion.span
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="absolute top-1 right-2 text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded"
+                  >
+                    Applied: {appliedCouponCode}
+                  </motion.span>
+                )}
+              </div>
+              <Button 
+                onClick={appliedCouponCode ? handleRemoveCoupon : handleCouponApply} 
+                className="w-full" 
+                disabled={applyingCoupon}
+              >
+                {applyingCoupon ? 'Applying...' : appliedCouponCode ? 'Remove Coupon' : 'Apply Coupon'}
               </Button>
+              {couponError && <p className="text-sm text-red-600">{couponError}</p>}
             </div>
 
             <Button onClick={handlePlaceOrder} className="w-full" disabled={loading}>
-              Place Order
+              {loading ? 'Placing Order...' : 'Place Order'}
             </Button>
-          </div>
+          </motion.div>
         </div>
       </div>
 
