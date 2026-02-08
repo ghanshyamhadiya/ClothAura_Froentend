@@ -55,7 +55,7 @@ const ProductDetails = () => {
   const [isReviewsOpen, setIsReviewsOpen] = useState(false);
   const [relatedProducts, setRelatedProducts] = useState([]);
 
-  const { productStats } = useReview();
+  const { productStats, fetchProductReviews } = useReview();
   const {
     addToCart,
     removeFromCart,
@@ -76,8 +76,8 @@ const ProductDetails = () => {
   const inCart = isAuthenticated && isInCart(id, selectedVariant?._id, selectedSize?._id);
   const cartItem = isAuthenticated && getCartItem(id, selectedVariant?._id, selectedSize?._id);
 
-  const rating = productStats?.averageRating || 4.5;
-  const totalReviews = productStats?.totalReviews || 124;
+  const rating = productStats?.averageRating || 0;
+  const totalReviews = productStats?.totalReviews || 0;
 
   const discount =
     selectedSize?.originalPrice > selectedSize?.price
@@ -99,7 +99,9 @@ const ProductDetails = () => {
       }
     };
     fetchProduct();
-  }, [id, isAuthenticated, isInWishlist, navigate]);
+    // Fetch reviews for this product
+    fetchProductReviews(id);
+  }, [id, isAuthenticated, isInWishlist, navigate, fetchProductReviews]);
 
   // Get related products (same category, different product)
   useEffect(() => {
@@ -241,11 +243,10 @@ const ProductDetails = () => {
                           setSelectedSizeIndex(null);
                           setQuantity(1);
                         }}
-                        className={`px-5 py-2.5 rounded-lg border-2 text-sm font-medium transition-all ${
-                          selectedColorIndex === i
+                        className={`px-5 py-2.5 rounded-lg border-2 text-sm font-medium transition-all ${selectedColorIndex === i
                             ? "bg-black text-white border-black"
                             : "border-gray-300 hover:border-black"
-                        }`}
+                          }`}
                       >
                         {v.color}
                       </button>
@@ -266,13 +267,12 @@ const ProductDetails = () => {
                           key={i}
                           onClick={() => !outOfStock && setSelectedSizeIndex(i)}
                           disabled={outOfStock}
-                          className={`px-5 py-2.5 rounded-lg border-2 text-sm font-medium transition-all ${
-                            selectedSizeIndex === i
+                          className={`px-5 py-2.5 rounded-lg border-2 text-sm font-medium transition-all ${selectedSizeIndex === i
                               ? "bg-black text-white border-black"
                               : outOfStock
-                              ? "border-gray-200 text-gray-400 opacity-60"
-                              : "border-gray-300 hover:border-black"
-                          }`}
+                                ? "border-gray-200 text-gray-400 opacity-60"
+                                : "border-gray-300 hover:border-black"
+                            }`}
                         >
                           {size.size}
                         </button>
@@ -332,11 +332,10 @@ const ProductDetails = () => {
 
                 <button
                   onClick={toggleWishlist}
-                  className={`w-14 h-14 rounded-2xl border-2 flex items-center justify-center transition-all shadow-lg ${
-                    isWishlisted
+                  className={`w-14 h-14 rounded-2xl border-2 flex items-center justify-center transition-all shadow-lg ${isWishlisted
                       ? "bg-red-50 border-red-300"
                       : "bg-white border-gray-300 hover:border-black"
-                  }`}
+                    }`}
                 >
                   <Heart size={24} className={isWishlisted ? "fill-red-600 text-red-600" : "text-gray-700"} />
                 </button>

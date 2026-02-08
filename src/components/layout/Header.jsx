@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate, NavLink } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ShoppingCart,
@@ -12,15 +12,18 @@ import {
   Package,
   CreditCard,
   MapPin,
+  Search,
+  ChevronRight,
+  BarChart3
 } from 'lucide-react';
 
 import { useAuth } from '../../context/AuthContext';
 import { useAuthModel } from '../../context/AuthModelContext';
 import { useCartWishlist } from '../../context/CartWhislistContext';
 import { useProducts } from '../../context/ProductContext';
-
 import SearchBar from '../common/SearchBar';
 import ConfirmationModal from '../model/ConfirmationModel';
+import NotificationBell from '../common/NotificationBell';
 
 function Header() {
   const navigate = useNavigate();
@@ -29,25 +32,14 @@ function Header() {
   const { cart, wishlist } = useCartWishlist();
   const { isAuthenticated, user, logout } = useAuth();
   const { openModel } = useAuthModel();
-  const {
-    searchQuery,
-    setSearchQuery,
-    searchProducts,
-    clearSearch,
-  } = useProducts();
+  const { searchQuery, setSearchQuery, searchProducts, clearSearch } = useProducts();
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
-
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
-
-  // Search visibility
-  const showSearchBar =
-    location.pathname === '/' ||
-    location.pathname === '/products' ||
-    location.pathname === '/search' 
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   const toggleMobileMenu = () => setIsMobileMenuOpen(p => !p);
 
@@ -58,6 +50,7 @@ function Header() {
     }
     searchProducts(query);
     navigate('/');
+    setIsSearchOpen(false);
   };
 
   const performLogout = async () => {
@@ -68,7 +61,7 @@ function Header() {
     setIsMobileMenuOpen(false);
   };
 
-  // Scroll hide effect
+  // Scroll hide effect with backdrop blur
   useEffect(() => {
     const control = () => {
       const current = window.scrollY;
@@ -79,135 +72,233 @@ function Header() {
     return () => window.removeEventListener('scroll', control);
   }, [lastScrollY]);
 
+  // Close search on route change
+  useEffect(() => {
+    setIsSearchOpen(false);
+  }, [location.pathname]);
+
   const cartCount = cart.reduce((s, i) => s + i.quantity, 0);
   const wishlistCount = wishlist.length;
 
-  // Badge component
-  const Badge = ({ count }) => count > 0 && (
-    <span className="absolute -top-1 -right-1 bg-black text-white text-xs font-bold rounded-full px-1.5 py-0.5 min-w-[20px] flex items-center justify-center">
-      {count > 99 ? '99+' : count}
-    </span>
+  // Paths where search should be shown
+  const searchAllowedPaths = ['/', '/products', '/categories'];
+  const showSearchIcon = searchAllowedPaths.some(path =>
+    location.pathname === path || location.pathname.startsWith('/products')
+  );
+
+  const NavItem = ({ to, children }) => (
+    <NavLink
+      to={to}
+      className={({ isActive }) =>
+        `text-sm font-medium tracking-wide transition-all duration-200 hover:text-black hover:scale-105 ${isActive ? 'text-black' : 'text-gray-500'}`
+      }
+    >
+      {children}
+    </NavLink>
   );
 
   return (
     <>
       <motion.header
-        className="fixed top-0 left-0 right-0 bg-white border-b border-gray-200 shadow-sm z-50"
+        className={`fixed top-0 left-0 right-0 z-50 border-b border-gray-100 transition-all duration-300 ${lastScrollY > 10 ? 'bg-white/90 backdrop-blur-xl shadow-sm' : 'bg-white'
+          }`}
         animate={isVisible ? { y: 0 } : { y: '-100%' }}
         transition={{ duration: 0.3, ease: 'easeInOut' }}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          {/* Logo */}
-          <Link to="/" className="text-3xl font-black tracking-tight text-black hover:opacity-80 transition">
-            ClothAura
-          </Link>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between relative">
 
-          {/* Desktop Search */}
-          {showSearchBar && (
-            <div className="hidden md:flex flex-1 mx-8 max-w-2xl">
-              <SearchBar
-                onSearch={handleSearch}
-                searchQuery={searchQuery}
-                setSearchQuery={setSearchQuery}
-              />
+          {/* Logo & Mobile Toggle */}
+          <div className="flex items-center gap-4 z-20">
+            <button
+              onClick={toggleMobileMenu}
+              className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition md:hidden"
+            >
+              <Menu className="w-6 h-6 text-black" />
+            </button>
+            <Link to="/" className="text-2xl font-black tracking-tighter text-black uppercase">
+              CLOTHAURA<span className="text-black">.</span>
+            </Link>
+          </div>
+
+          {/* Desktop: Navigation OR Search Bar (Inline) */}
+          <div className="hidden md:flex flex-1 items-center justify-center px-12 absolute inset-0 z-10 pointer-events-none">
+            <div className="pointer-events-auto w-full max-w-2xl flex justify-center">
+              <AnimatePresence mode="wait">
+                {!isSearchOpen ? (
+                  <motion.nav
+                    key="nav"
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                    transition={{ duration: 0.2 }}
+                    className="flex items-center gap-10"
+                  >
+                    <NavItem to="/">Home</NavItem>
+                    <NavItem to="/products">Shop</NavItem>
+                    <NavItem to="/products?sort=new">New Arrivals</NavItem>
+                    <NavItem to="/categories">Collections</NavItem>
+                  </motion.nav>
+                ) : (
+                  <motion.div
+                    key="search"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ duration: 0.2 }}
+                    className="w-full"
+                  >
+                    <SearchBar
+                      onSearch={handleSearch}
+                      searchQuery={searchQuery}
+                      setSearchQuery={setSearchQuery}
+                      autoFocus
+                      placeholder="Search products..."
+                      minimal={true}
+                      className="w-full border-b-2 border-gray-100 focus-within:border-black transition-colors"
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
-          )}
+          </div>
 
-          {/* Desktop Right Nav */}
-          <nav className="flex items-center gap-6">
+
+          {/* Right Icons */}
+          <div className="flex items-center gap-1 sm:gap-4 z-20 bg-white pl-4">
+            {/* Notification Bell - For authenticated users (owners and admin) */}
+            {isAuthenticated && (user?.role === 'owner' || user?.role === 'admin') && (
+              <NotificationBell />
+            )}
+
+            {/* Search Trigger - Only on allowed paths */}
+            {showSearchIcon && (
+              <button
+                onClick={() => setIsSearchOpen(!isSearchOpen)}
+                className="p-2 hover:bg-gray-100 rounded-full transition text-gray-800 relative"
+                aria-label={isSearchOpen ? 'Close search' : 'Open search'}
+              >
+                <AnimatePresence mode="wait">
+                  {isSearchOpen ? (
+                    <motion.div key="close" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }}>
+                      <X className="w-5 h-5" />
+                    </motion.div>
+                  ) : (
+                    <motion.div key="search" initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }}>
+                      <Search className="w-5 h-5" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </button>
+            )}
+
             {isAuthenticated && (user?.role === 'user') && (
               <>
-                <Link to="/wishlist" className="relative p-2 hover:bg-gray-100 rounded-full transition">
-                  <Heart className="w-6 h-6 text-gray-800" />
-                  <Badge count={wishlistCount} />
+                <Link to="/wishlist" className="relative p-2 hover:bg-gray-100 rounded-full transition text-gray-800 hidden sm:block">
+                  <Heart className="w-5 h-5" />
+                  {wishlistCount > 0 && (
+                    <span className="absolute top-1 right-0.5 w-2 h-2 bg-black rounded-full" />
+                  )}
                 </Link>
-                <Link to="/cart" className="relative p-2 hover:bg-gray-100 rounded-full transition">
-                  <ShoppingCart className="w-6 h-6 text-gray-800" />
-                  <Badge count={cartCount} />
+                <Link to="/cart" className="relative p-2 hover:bg-gray-100 rounded-full transition text-gray-800">
+                  <ShoppingCart className="w-5 h-5" />
+                  {cartCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-black text-white text-[10px] font-bold h-4 w-4 flex items-center justify-center rounded-full">
+                      {cartCount}
+                    </span>
+                  )}
                 </Link>
               </>
             )}
 
             {isAuthenticated ? (
-              <div className="relative group">
-                <button className="flex items-center gap-2 p-2 hover:bg-gray-100 rounded-full transition">
-                  <User className="w-6 h-6 text-gray-800" />
-                </button>
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="absolute right-0 mt-2 w-64 bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden hidden group-hover:block z-50"
-                >
-                  <div className="px-4 py-3 text-sm font-semibold text-gray-700 border-b border-gray-200">
-                    {user?.name || 'Account'}
+              <div className="relative group hidden sm:block">
+                <Link to="/dashboard" className="p-2 hover:bg-gray-100 rounded-full transition text-gray-800 block">
+                  <User className="w-5 h-5" />
+                </Link>
+
+                {/* User Dropdown */}
+                <div className="absolute right-0 top-full pt-2 w-64 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform origin-top-right">
+                  <div className="bg-white border border-gray-100 rounded-2xl shadow-xl overflow-hidden p-2">
+                    <div className="px-3 py-2 border-b border-gray-100 mb-2">
+                      <p className="text-xs text-gray-500">Signed in as</p>
+                      <p className="font-semibold text-sm truncate">{user?.username}</p>
+                    </div>
+
+                    <Link to="/dashboard" className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-black transition">
+                      <LayoutDashboard className="w-4 h-4" /> Dashboard
+                    </Link>
+                    <Link to="/orders" className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-black transition">
+                      <Package className="w-4 h-4" /> My Orders
+                    </Link>
+                    <Link to="/user-coupons" className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-black transition">
+                      <CreditCard className="w-4 h-4" /> My Coupons
+                    </Link>
+
+                    {(user?.role === 'admin' || user?.role === 'owner') && (
+                      <div className="my-1 border-t border-gray-100 pt-1">
+                        <p className="px-3 py-1 text-[10px] uppercase font-bold text-gray-400">Management</p>
+                        <Link to="/owner/dashboard" className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-black transition">
+                          <LayoutDashboard className="w-4 h-4" /> Analytics Dashboard
+                        </Link>
+                        <Link to="/dashboard/orders" className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-black transition">
+                          <Package className="w-4 h-4" /> Manage Orders
+                        </Link>
+                        <Link to="/manage/dashboard/products" className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-black transition">
+                          <Package className="w-4 h-4" /> Manage Products
+                        </Link>
+                      </div>
+                    )}
+
+                    <button
+                      onClick={() => setIsLogoutModalOpen(true)}
+                      className="w-full flex items-center gap-3 px-3 py-2 mt-1 rounded-lg text-sm text-red-500 hover:bg-red-50 transition"
+                    >
+                      <LogOut className="w-4 h-4" /> Sign Out
+                    </button>
                   </div>
-
-                  <Link to="/dashboard" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-800 hover:bg-gray-100 transition">
-                    <LayoutDashboard className="w-4 h-4" /> Dashboard
-                  </Link>
-                  <Link to="/orders" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-800 hover:bg-gray-100 transition">
-                    <CreditCard className="w-4 h-4" /> Orders
-                  </Link>
-                  <Link to="/address" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-800 hover:bg-gray-100 transition">
-                    <MapPin className="w-4 h-4" /> Addresses
-                  </Link>
-                  <Link to="/user-coupons" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-800 hover:bg-gray-100 transition">
-                    <CreditCard className="w-4 h-4" /> Coupons
-                  </Link>
-
-                  {(user?.role === 'admin' || user?.role === 'owner') && (
-                    <>
-                      <div className="h-px bg-gray-200 my-1" />
-                      <Link to="/dashboard/orders" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-800 hover:bg-gray-100 transition">
-                        <LayoutDashboard className="w-4 h-4" /> Order Dashboard
-                      </Link>
-                      <Link to="/manage/dashboard/products" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-800 hover:bg-gray-100 transition">
-                        <Package className="w-4 h-4" /> Manage Products
-                      </Link>
-                      <Link to="/product/create" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-800 hover:bg-gray-100 transition">
-                        <Package className="w-4 h-4" /> Create Product
-                      </Link>
-                      <Link to="/coupon/create" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-800 hover:bg-gray-100 transition">
-                        <Package className="w-4 h-4" /> Create Coupon
-                      </Link>
-                    </>
-                  )}
-
-                  <div className="h-px bg-gray-200 my-1" />
-                  <button
-                    onClick={() => setIsLogoutModalOpen(true)}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition"
-                  >
-                    <LogOut className="w-4 h-4" /> Logout
-                  </button>
-                </motion.div>
+                </div>
               </div>
             ) : (
-              <div className="hidden md:flex items-center gap-4">
+              <div className="hidden sm:flex items-center gap-3">
                 <button
                   onClick={() => openModel('login')}
-                  className="px-5 py-2 border border-black rounded-md hover:bg-gray-100 transition text-sm font-medium"
+                  className="text-sm font-semibold text-gray-600 hover:text-black transition"
                 >
-                  Login
+                  Log in
                 </button>
                 <button
                   onClick={() => openModel('register')}
-                  className="px-5 py-2 bg-black text-white rounded-md hover:bg-gray-800 transition text-sm font-medium"
+                  className="bg-black text-white px-5 py-2 rounded-full text-sm font-medium hover:bg-gray-800 transition shadow-lg shadow-black/20"
                 >
-                  Register
+                  Sign up
                 </button>
               </div>
             )}
-
-            {/* Mobile Menu Toggle */}
-            <button
-              onClick={toggleMobileMenu}
-              className="p-2 hover:bg-gray-100 rounded-full transition md:hidden"
-            >
-              {isMobileMenuOpen ? <X className="w-6 h-6 text-gray-800" /> : <Menu className="w-6 h-6 text-gray-800" />}
-            </button>
-          </nav>
+          </div>
         </div>
+
+        {/* Mobile Search - Slide down just below header */}
+        <AnimatePresence>
+          {isSearchOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="md:hidden border-t border-gray-100 bg-white overflow-hidden shadow-lg"
+            >
+              <div className="px-4 py-4">
+                <SearchBar
+                  onSearch={handleSearch}
+                  searchQuery={searchQuery}
+                  setSearchQuery={setSearchQuery}
+                  autoFocus
+                  placeholder="Search products..."
+                  minimal={false}
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.header>
 
       {/* Mobile Menu */}
@@ -219,155 +310,96 @@ function Header() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={toggleMobileMenu}
-              className="fixed inset-0 bg-black/50 z-40 md:hidden"
+              className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 md:hidden"
             />
             <motion.nav
-              initial={{ x: '100%' }}
+              initial={{ x: '-100%' }}
               animate={{ x: 0 }}
-              exit={{ x: '100%' }}
+              exit={{ x: '-100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed top-0 right-0 bottom-0 w-80 bg-white shadow-2xl z-50 flex flex-col md:hidden overflow-y-auto"
+              className="fixed top-0 left-0 bottom-0 w-[80%] max-w-sm bg-white z-50 md:hidden overflow-y-auto"
             >
-              <div className="flex items-center justify-between p-4 border-b border-gray-200">
-                <span className="text-xl font-bold text-gray-800">Menu</span>
-                <button onClick={toggleMobileMenu} className="p-2 hover:bg-gray-100 rounded-full">
-                  <X className="w-6 h-6 text-gray-800" />
-                </button>
-              </div>
-
-              {/* Mobile Search */}
-              {showSearchBar && (
-                <div className="p-4 border-b border-gray-200">
-                  <SearchBar
-                    onSearch={handleSearch}
-                    searchQuery={searchQuery}
-                    setSearchQuery={setSearchQuery}
-                  />
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-8">
+                  <span className="text-xl font-black tracking-tighter uppercase">CLOTHAURA.</span>
+                  <button onClick={toggleMobileMenu} className="p-2 hover:bg-gray-100 rounded-full">
+                    <X className="w-6 h-6 text-black" />
+                  </button>
                 </div>
-              )}
 
-              <div className="flex-1 p-4 space-y-2">
-                {isAuthenticated ? (
-                  <>
-                    <div className="text-sm font-semibold text-gray-700 pb-2 border-b border-gray-200">
-                      {user?.name || 'Account'}
-                    </div>
-
-                    <Link
-                      to="/dashboard"
-                      onClick={toggleMobileMenu}
-                      className="flex items-center gap-3 p-3 hover:bg-gray-100 rounded-md text-sm text-gray-800 transition"
-                    >
-                      <LayoutDashboard className="w-5 h-5" /> Dashboard
+                <div className="space-y-6">
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Shop</p>
+                    <Link to="/" onClick={toggleMobileMenu} className="block py-2 text-lg font-medium text-gray-900 border-b border-gray-100 flex justify-between">
+                      Home <ChevronRight size={16} className="text-gray-400" />
                     </Link>
-                    <Link
-                      to="/orders"
-                      onClick={toggleMobileMenu}
-                      className="flex items-center gap-3 p-3 hover:bg-gray-100 rounded-md text-sm text-gray-800 transition"
-                    >
-                      <CreditCard className="w-5 h-5" /> Orders
+                    <Link to="/products" onClick={toggleMobileMenu} className="block py-2 text-lg font-medium text-gray-900 border-b border-gray-100 flex justify-between">
+                      Shop All <ChevronRight size={16} className="text-gray-400" />
                     </Link>
-                    <Link
-                      to="/address"
-                      onClick={toggleMobileMenu}
-                      className="flex items-center gap-3 p-3 hover:bg-gray-100 rounded-md text-sm text-gray-800 transition"
-                    >
-                      <MapPin className="w-5 h-5" /> Addresses
+                    <Link to="/products?sort=new" onClick={toggleMobileMenu} className="block py-2 text-lg font-medium text-gray-900 border-b border-gray-100 flex justify-between">
+                      New Arrivals <ChevronRight size={16} className="text-gray-400" />
                     </Link>
-                    <Link
-                      to="/user-coupons"
-                      onClick={toggleMobileMenu}
-                      className="flex items-center gap-3 p-3 hover:bg-gray-100 rounded-md text-sm text-gray-800 transition"
-                    >
-                      <CreditCard className="w-5 h-5" /> Coupons
+                    <Link to="/categories" onClick={toggleMobileMenu} className="block py-2 text-lg font-medium text-gray-900 border-b border-gray-100 flex justify-between">
+                      Collections <ChevronRight size={16} className="text-gray-400" />
                     </Link>
-
-                    {user?.role === 'user' && (
-                      <>
-                        <Link
-                          to="/wishlist"
-                          onClick={toggleMobileMenu}
-                          className="flex items-center gap-3 p-3 hover:bg-gray-100 rounded-md text-sm text-gray-800 transition"
-                        >
-                          <Heart className="w-5 h-5" /> Wishlist ({wishlistCount})
-                        </Link>
-                        <Link
-                          to="/cart"
-                          onClick={toggleMobileMenu}
-                          className="flex items-center gap-3 p-3 hover:bg-gray-100 rounded-md text-sm text-gray-800 transition"
-                        >
-                          <ShoppingCart className="w-5 h-5" /> Cart ({cartCount})
-                        </Link>
-                      </>
-                    )}
-
-                    {(user?.role === 'admin' || user?.role === 'owner') && (
-                      <>
-                        <div className="h-px bg-gray-200 my-2" />
-                        <Link
-                          to="/dashboard/orders"
-                          onClick={toggleMobileMenu}
-                          className="flex items-center gap-3 p-3 hover:bg-gray-100 rounded-md text-sm text-gray-800 transition"
-                        >
-                          <LayoutDashboard className="w-5 h-5" /> Order Dashboard
-                        </Link>
-                        <Link
-                          to="/manage/dashboard/products"
-                          onClick={toggleMobileMenu}
-                          className="flex items-center gap-3 p-3 hover:bg-gray-100 rounded-md text-sm text-gray-800 transition"
-                        >
-                          <Package className="w-5 h-5" /> Manage Products
-                        </Link>
-                        <Link
-                          to="/product/create"
-                          onClick={toggleMobileMenu}
-                          className="flex items-center gap-3 p-3 hover:bg-gray-100 rounded-md text-sm text-gray-800 transition"
-                        >
-                          <Package className="w-5 h-5" /> Create Product
-                        </Link>
-                        <Link
-                          to="/coupon/create"
-                          onClick={toggleMobileMenu}
-                          className="flex items-center gap-3 p-3 hover:bg-gray-100 rounded-md text-sm text-gray-800 transition"
-                        >
-                          <Package className="w-5 h-5" /> Create Coupon
-                        </Link>
-                      </>
-                    )}
-
-                    <div className="h-px bg-gray-200 my-2" />
-                    <button
-                      onClick={() => {
-                        setIsLogoutModalOpen(true);
-                        toggleMobileMenu();
-                      }}
-                      className="w-full flex items-center gap-3 p-3 text-sm text-red-600 hover:bg-red-50 rounded-md transition"
-                    >
-                      <LogOut className="w-5 h-5" /> Logout
-                    </button>
-                  </>
-                ) : (
-                  <div className="space-y-3">
-                    <button
-                      onClick={() => {
-                        openModel('login');
-                        toggleMobileMenu();
-                      }}
-                      className="w-full px-5 py-3 border border-black rounded-md hover:bg-gray-100 transition text-sm font-medium"
-                    >
-                      Login
-                    </button>
-                    <button
-                      onClick={() => {
-                        openModel('register');
-                        toggleMobileMenu();
-                      }}
-                      className="w-full px-5 py-3 bg-black text-white rounded-md hover:bg-gray-800 transition text-sm font-medium"
-                    >
-                      Register
-                    </button>
                   </div>
-                )}
+
+                  {isAuthenticated ? (
+                    <div className="space-y-1">
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Account</p>
+                      <Link to="/dashboard" onClick={toggleMobileMenu} className="flex items-center gap-3 py-2 text-gray-600">
+                        <User size={18} /> Dashboard
+                      </Link>
+                      <Link to="/orders" onClick={toggleMobileMenu} className="flex items-center gap-3 py-2 text-gray-600">
+                        <Package size={18} /> Orders
+                      </Link>
+                      <Link to="/user-coupons" onClick={toggleMobileMenu} className="flex items-center gap-3 py-2 text-gray-600">
+                        <CreditCard size={18} /> My Coupons
+                      </Link>
+
+                      {(user?.role === 'admin' || user?.role === 'owner') && (
+                        <>
+                          <div className="my-2 border-t border-gray-200" />
+                          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 mt-3">Management</p>
+                          <Link to="/owner/dashboard" onClick={toggleMobileMenu} className="flex items-center gap-3 py-2 text-gray-600">
+                            <BarChart3 size={18} /> Analytics
+                          </Link>
+                          <Link to="/dashboard/orders" onClick={toggleMobileMenu} className="flex items-center gap-3 py-2 text-gray-600">
+                            <Package size={18} /> Manage Orders
+                          </Link>
+                          <Link to="/manage/dashboard/products" onClick={toggleMobileMenu} className="flex items-center gap-3 py-2 text-gray-600">
+                            <LayoutDashboard size={18} /> Manage Products
+                          </Link>
+                        </>
+                      )}
+
+                      <button
+                        onClick={() => {
+                          setIsLogoutModalOpen(true);
+                          toggleMobileMenu();
+                        }}
+                        className="flex items-center gap-3 py-2 text-red-500 w-full text-left mt-2"
+                      >
+                        <LogOut size={18} /> Sign Out
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-4 mt-8">
+                      <button
+                        onClick={() => { openModel('login'); toggleMobileMenu(); }}
+                        className="py-3 border border-gray-200 rounded-xl font-semibold hover:border-black transition text-sm"
+                      >
+                        Log in
+                      </button>
+                      <button
+                        onClick={() => { openModel('register'); toggleMobileMenu(); }}
+                        className="py-3 bg-black text-white rounded-xl font-semibold hover:bg-gray-800 transition text-sm shadow-lg"
+                      >
+                        Sign up
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </motion.nav>
           </>
@@ -378,9 +410,9 @@ function Header() {
         isOpen={isLogoutModalOpen}
         onClose={() => setIsLogoutModalOpen(false)}
         onConfirm={performLogout}
-        title="Logout Confirmation"
+        title="Sign Out"
         message="Are you sure you want to log out?"
-        confirmText="Logout"
+        confirmText="Sign Out"
         loading={logoutLoading}
       />
     </>

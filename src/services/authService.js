@@ -75,7 +75,7 @@ export const authService = {
   // Resend verification email
   resendVerificationEmail: async () => {
     try {
-      const response = await api.post('/resend-verifiaction');
+      const response = await api.post('/resend-verification');
       return response.data;
     } catch (error) {
       throw error.response?.data || error;
@@ -99,14 +99,14 @@ export const authService = {
     if (!token) {
       throw new Error("No access token found");
     }
-    
+
     try {
       const response = await api.get('/me', {
         headers: {
           Authorization: `Bearer ${token}`
         }
       });
-      
+
       if (response.data.success && response.data.user) {
         return response.data.user;
       } else {
@@ -198,28 +198,28 @@ export const authService = {
     }
   },
 
-checkStatus: async () => {
-  try {
-    const response = await api.get('/health', {
-      timeout: 5000,
-      validateStatus: (status) => status === 200,
-    });
-    
-    if (response.status === 200 && response.data.status === 'OK') {
-      console.log('✓ Backend is UP:', response.data.timestamp);
-      return { status: 'UP', timestamp: response.data.timestamp };
-    } else {
-      console.warn('Backend responded but status is not OK:', response.data);
-      return { status: 'DOWN' };
+  checkStatus: async () => {
+    try {
+      const response = await api.get('/health', {
+        timeout: 5000,
+        validateStatus: (status) => status === 200,
+      });
+
+      if (response.status === 200 && response.data.status === 'OK') {
+        console.log('✓ Backend is UP:', response.data.timestamp);
+        return { status: 'UP', timestamp: response.data.timestamp };
+      } else {
+        console.warn('Backend responded but status is not OK:', response.data);
+        return { status: 'DOWN' };
+      }
+    } catch (error) {
+      // Network error, timeout, or server down
+      if (!error.response) {
+        console.error('Backend is DOWN - Network error or timeout:', error.message);
+      } else {
+        console.error('Backend status check error:', error.response?.status);
+      }
+      return { status: 'DOWN', error: error.message };
     }
-  } catch (error) {
-    // Network error, timeout, or server down
-    if (!error.response) {
-      console.error('Backend is DOWN - Network error or timeout:', error.message);
-    } else {
-      console.error('Backend status check error:', error.response?.status);
-    }
-    return { status: 'DOWN', error: error.message };
   }
-}
 };

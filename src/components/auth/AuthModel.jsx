@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthModel } from "../../context/AuthModelContext";
 import { useAuth } from "../../context/AuthContext";
 
 const AuthModal = () => {
-    const { isOpen, view, closeModal, switchView } = useAuthModel();
+    const { isOpen, view, closeModal, switchView, openModal } = useAuthModel();
     const { login, register, loading: authLoading, error: authError } = useAuth();
 
     const [formData, setFormData] = useState({
@@ -15,6 +15,20 @@ const AuthModal = () => {
     const [showPassword, setShowPassword] = useState(false);
     const [localError, setLocalError] = useState('');
     const [localSuccess, setLocalSuccess] = useState('');
+
+    // Listen for custom event to open modal
+    useEffect(() => {
+        const handleOpenAuthModal = (event) => {
+            const { mode } = event.detail || {};
+            if (mode === 'login' || mode === 'signup') {
+                openModal();
+                switchView(mode === 'signup' ? 'register' : 'login');
+            }
+        };
+
+        window.addEventListener('openAuthModal', handleOpenAuthModal);
+        return () => window.removeEventListener('openAuthModal', handleOpenAuthModal);
+    }, [openModal, switchView]);
 
     const handleChange = (e) => {
         setFormData({
@@ -147,9 +161,8 @@ const AuthModal = () => {
 
                                 {/* Error / Success Messages */}
                                 {(localError || localSuccess) && (
-                                    <div className={`text-center text-sm p-3 rounded-lg mb-4 ${
-                                        localError ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'
-                                    }`}>
+                                    <div className={`text-center text-sm p-3 rounded-lg mb-4 ${localError ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'
+                                        }`}>
                                         {localError || localSuccess}
                                     </div>
                                 )}

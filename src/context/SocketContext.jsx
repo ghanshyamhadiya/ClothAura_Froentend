@@ -27,12 +27,12 @@ export const SocketProvider = ({ children }) => {
             try {
                 // Get token from localStorage if available
                 const token = localStorage.getItem('accessToken');
-                
+
                 console.log('🔌 Initializing socket connection...', token ? 'with token' : 'without token');
-                
+
                 // Initialize socket connection - allow without token
                 await socketManager.initialize(token);
-                
+
                 console.log('✅ Socket initialized successfully');
                 setSocketInitialized(true);
                 setSocketError(null);
@@ -76,11 +76,11 @@ export const SocketProvider = ({ children }) => {
         // Set up status update listeners
         socketManager.on('connect', handleConnect);
         socketManager.on('disconnect', handleDisconnect);
-        
+
         // Listen to custom auth events
         const handleSocketAuth = (event) => handleAuthenticated(event.detail);
         const handleSocketAuthError = (event) => handleAuthError(event);
-        
+
         window.addEventListener('socket:authenticated', handleSocketAuth);
         window.addEventListener('socket:authError', handleSocketAuthError);
 
@@ -115,7 +115,7 @@ export const SocketProvider = ({ children }) => {
         return socketManager.authenticate(token);
     };
 
-    // Context value
+    // Context value - expose both socketManager and the raw socket for direct access
     const value = {
         socketManager,
         socketInitialized,

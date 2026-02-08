@@ -56,6 +56,17 @@ export const orderService = {
         }
     },
 
+    // Get current user's orders
+    getUserOrders: async () => {
+        try {
+            const response = await api.get('/orders/user/me');
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching user orders:', error);
+            throw error;
+        }
+    },
+
     // Get order by ID
     getOrderById: async (orderId) => {
         try {
@@ -96,6 +107,28 @@ export const orderService = {
             return response.data;
         } catch (error) {
             console.error('Error tracking order:', error);
+            throw error;
+        }
+    },
+
+    // Get owner's detailed analytics
+    getOwnerAnalyticsDetailed: async () => {
+        try {
+            const response = await api.get('/orders/owner/analytics');
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching owner analytics:', error);
+            throw error;
+        }
+    },
+
+    // Get users who have owner's products in cart/wishlist
+    getOwnerProductInterest: async () => {
+        try {
+            const response = await api.get('/orders/owner/product-interest');
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching product interest:', error);
             throw error;
         }
     }

@@ -130,7 +130,7 @@ const ProductReviews = ({ productId }) => {
       ) : (
         /* Reviews List */
         <div className="space-y-6">
-          <AnimatePresence mode="wait">
+          <AnimatePresence>
             {reviews.map((review, idx) => (
               <motion.article
                 key={review._id}

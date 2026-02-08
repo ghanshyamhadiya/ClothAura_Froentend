@@ -57,11 +57,11 @@ export const AuthProvider = ({ children }) => {
         try {
           await authService.refreshToken();
           const newToken = authService.getToken();
-          
+
           if (newToken && isConnected) {
             socketAuthenticate(newToken);
           }
-          
+
           setupTokenRefresh();
         } catch (error) {
           console.error('Proactive token refresh failed:', error);
@@ -114,14 +114,14 @@ export const AuthProvider = ({ children }) => {
 
   const checkAuthStatus = async () => {
     if (isCheckingAuth.current) return;
-    
+
     try {
       isCheckingAuth.current = true;
       setLoading(true);
       setError(null);
-      
+
       const token = authService.getToken();
-      
+
       if (token) {
         try {
           const userData = await authService.getUserByApi();
@@ -137,22 +137,22 @@ export const AuthProvider = ({ children }) => {
           }
         } catch (fetchError) {
           console.error("Failed to fetch user data:", fetchError);
-          
+
           if (fetchError.response?.status === 401) {
             try {
               console.log('Access token expired, attempting refresh...');
               await authService.refreshToken();
               const newToken = authService.getToken();
-              
+
               if (newToken) {
                 const userData = await authService.getUserByApi();
                 setUser(userData);
                 setAddresses(userData.addresses || []);
                 setIsAuthenticated(true);
                 localStorage.setItem('wasLoggedIn', 'true');
-                
+
                 setupTokenRefresh();
-                
+
                 if (isConnected) {
                   socketAuthenticate(newToken);
                 }
@@ -162,18 +162,49 @@ export const AuthProvider = ({ children }) => {
               console.error('Token refresh failed:', refreshError);
             }
           }
-          
+
           localStorage.removeItem("accessToken");
           localStorage.removeItem("wasLoggedIn");
           setIsAuthenticated(false);
           setUser(null);
           setAddresses([]);
-          
+
           if (fetchError.response?.status !== 401) {
             setError("Failed to load user data. Please try again.");
           }
         }
       } else {
+        // No token in localStorage - check if user was previously logged in
+        const wasLoggedIn = localStorage.getItem('wasLoggedIn') === 'true';
+
+        if (wasLoggedIn) {
+          // User was logged in before - attempt silent token refresh using httpOnly refresh cookie
+          console.log('No access token but was logged in, attempting silent refresh...');
+          try {
+            await authService.refreshToken();
+            const newToken = authService.getToken();
+
+            if (newToken) {
+              const userData = await authService.getUserByApi();
+              setUser(userData);
+              setAddresses(userData.addresses || []);
+              setIsAuthenticated(true);
+
+              setupTokenRefresh();
+
+              if (isConnected) {
+                socketAuthenticate(newToken);
+              }
+              return; // Successfully refreshed
+            }
+          } catch (refreshError) {
+            console.log('Silent refresh failed, user will need to login again:', refreshError);
+            // Refresh failed - clear the flag so we don't keep trying
+            localStorage.removeItem('wasLoggedIn');
+          }
+        }
+
+        // Not logged in or refresh failed
         setIsAuthenticated(false);
         setUser(null);
         setAddresses([]);
@@ -195,7 +226,7 @@ export const AuthProvider = ({ children }) => {
     if (refreshTimerRef.current) {
       clearTimeout(refreshTimerRef.current);
     }
-    
+
     try {
       setLoading(true);
       setError(null);
@@ -232,7 +263,7 @@ export const AuthProvider = ({ children }) => {
       if (token && isConnected) {
         socketAuthenticate(token);
       }
-      
+
       toastService.success('Login successful');
       return response;
     } catch (error) {
@@ -266,7 +297,7 @@ export const AuthProvider = ({ children }) => {
       if (token && isConnected) {
         socketAuthenticate(token);
       }
-      
+
       toastService.success('Registration successful');
       return response;
     } catch (error) {
@@ -336,7 +367,7 @@ export const AuthProvider = ({ children }) => {
       setHasChecked(true);
     }
   };
-  
+
   const fetchAndSetUser = async () => {
     try {
       const userData = await authService.getUserByApi();

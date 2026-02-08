@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Edit2, Trash2, Star } from 'lucide-react';
 
-const ProductCard = ({ product, onEdit, onDelete, showOwnerActions = false }) => {
+const ProductCard = ({ product, onEdit, onDelete, showOwnerActions = false, viewMode = 'grid' }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);

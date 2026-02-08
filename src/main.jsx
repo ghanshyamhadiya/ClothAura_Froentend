@@ -10,6 +10,7 @@ import { SocketProvider } from './context/SocketContext.jsx'
 import { ProductProvider } from './context/ProductContext.jsx'
 import { CouponProvider } from './context/CouponContext.jsx'
 import AuthModelProvider from './context/AuthModelContext.jsx'
+import { NotificationProvider } from './context/NotificationContext.jsx'
 
 
 createRoot(document.getElementById('root')).render(
@@ -17,15 +18,17 @@ createRoot(document.getElementById('root')).render(
     <AuthModelProvider>
       <SocketProvider>
         <AuthProvider>
-          <ProductProvider>
-            <CartWishlistProvider>
-              <ReviewProvider>
-                <CouponProvider>
-                  <App />
-                </CouponProvider>
-              </ReviewProvider>
-            </CartWishlistProvider>
-          </ProductProvider>
+          <NotificationProvider>
+            <ProductProvider>
+              <CartWishlistProvider>
+                <ReviewProvider>
+                  <CouponProvider>
+                    <App />
+                  </CouponProvider>
+                </ReviewProvider>
+              </CartWishlistProvider>
+            </ProductProvider>
+          </NotificationProvider>
         </AuthProvider>
       </SocketProvider>
     </AuthModelProvider>

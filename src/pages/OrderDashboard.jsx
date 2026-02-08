@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Eye } from 'lucide-react';
 import { orderService } from '../services/orderService';
+import { useSocket } from '../context/SocketContext';
+import { toastService } from '../services/toastService';
 import AdminOwnerAnalytics from '../components/Dashboard/AdminOwnerAnalytics';
 import Loading from '../components/Loading';
 import OrderDetailsModal from '../components/common/OrderDetailsModal';
@@ -26,9 +28,84 @@ const OrderDashboard = () => {
     hasPrevious: false,
   });
 
+  const { on, off, isConnected } = useSocket();
+
   useEffect(() => {
     fetchDashboardOrders();
   }, [currentPage, statusFilter]);
+
+  // Real-time order updates
+  useEffect(() => {
+    if (!isConnected) return;
+
+    const handleNewOrder = (data) => {
+      // Only add if on first page and no filters
+      if (currentPage === 1 && !statusFilter) {
+        setOrders(prev => {
+          // Check if already exists (to avoid duplicates)
+          const exists = prev.some(o => o._id === (data._id || data.order?._id));
+          if (exists) return prev;
+
+          const newOrder = data.order || data;
+          toastService.info(`New order received: #${newOrder._id.slice(-6).toUpperCase()}`);
+          return [newOrder, ...prev].slice(0, 10); // Keep limit
+        });
+      } else {
+        // Just notify if not on first page
+        toastService.info('New order received! Check the list.');
+      }
+    };
+
+    const handleOrderUpdated = (updatedOrder) => {
+      setOrders(prev => prev.map(order =>
+        order._id === updatedOrder._id ? { ...order, ...updatedOrder } : order
+      ));
+
+      if (selectedOrder?._id === updatedOrder._id) {
+        setSelectedOrder(prev => ({ ...prev, ...updatedOrder }));
+      }
+    };
+
+    const handleOrderApprovalRequired = (data) => {
+      // For owners, this is equivalent to new order needing action
+      if (userRole === 'owner') {
+        handleNewOrder(data);
+      }
+    };
+
+    const handleOrderApproved = (data) => {
+      const updatedOrder = { ...data.order, status: 'processing', approvalStatus: 'approved' };
+      handleOrderUpdated(updatedOrder);
+    };
+
+    const handleOrderRejected = (data) => {
+      const updatedOrder = { ...data.order, status: 'cancelled', approvalStatus: 'rejected' };
+      handleOrderUpdated(updatedOrder);
+    };
+
+    // Listen for admin events
+    if (userRole === 'admin') {
+      on('orderCreated', handleNewOrder);
+    }
+
+    // Listen for owner events
+    on('order:approval-required', handleOrderApprovalRequired);
+
+    // Common events
+    on('orderUpdated', handleOrderUpdated); // Global update event
+    on('order:approved', handleOrderApproved);
+    on('order:rejected', handleOrderRejected);
+
+    return () => {
+      if (userRole === 'admin') {
+        off('orderCreated', handleNewOrder);
+      }
+      off('order:approval-required', handleOrderApprovalRequired);
+      off('orderUpdated', handleOrderUpdated);
+      off('order:approved', handleOrderApproved);
+      off('order:rejected', handleOrderRejected);
+    };
+  }, [isConnected, currentPage, statusFilter, userRole, selectedOrder]);
 
   const fetchDashboardOrders = async () => {
     try {
@@ -53,7 +130,9 @@ const OrderDashboard = () => {
   const handleStatusChange = async (orderId, newStatus) => {
     try {
       await orderService.updateOrder(orderId, { status: newStatus });
-      fetchDashboardOrders();
+      // No need to fetch manually, socket will update
+      // But for faster UI feedback we can update locally too
+      setOrders(prev => prev.map(o => o._id === orderId ? { ...o, status: newStatus } : o));
       if (selectedOrder?._id === orderId) {
         setSelectedOrder({ ...selectedOrder, status: newStatus });
       }
@@ -124,21 +203,19 @@ const OrderDashboard = () => {
               <div className="flex gap-10 border-b-2 border-gray-200">
                 <button
                   onClick={() => setActiveTab('orders')}
-                  className={`py-4 px-2 text-lg font-medium transition-all border-b-4 ${
-                    activeTab === 'orders'
-                      ? 'border-black text-black'
-                      : 'border-transparent text-gray-500 hover:text-gray-800'
-                  }`}
+                  className={`py-4 px-2 text-lg font-medium transition-all border-b-4 ${activeTab === 'orders'
+                    ? 'border-black text-black'
+                    : 'border-transparent text-gray-500 hover:text-gray-800'
+                    }`}
                 >
                   Orders
                 </button>
                 <button
                   onClick={() => setActiveTab('analytics')}
-                  className={`py-4 px-2 text-lg font-medium transition-all border-b-4 ${
-                    activeTab === 'analytics'
-                      ? 'border-black text-black'
-                      : 'border-transparent text-gray-500 hover:text-gray-800'
-                  }`}
+                  className={`py-4 px-2 text-lg font-medium transition-all border-b-4 ${activeTab === 'analytics'
+                    ? 'border-black text-black'
+                    : 'border-transparent text-gray-500 hover:text-gray-800'
+                    }`}
                 >
                   Analytics
                 </button>
@@ -150,21 +227,19 @@ const OrderDashboard = () => {
               <div className="flex gap-10 border-b-2 border-gray-200">
                 <button
                   onClick={() => setActiveTab('orders')}
-                  className={`py-4 px-2 text-lg font-medium transition-all border-b-4 ${
-                    activeTab === 'orders'
-                      ? 'border-black text-black'
-                      : 'border-transparent text-gray-500 hover:text-gray-800'
-                  }`}
+                  className={`py-4 px-2 text-lg font-medium transition-all border-b-4 ${activeTab === 'orders'
+                    ? 'border-black text-black'
+                    : 'border-transparent text-gray-500 hover:text-gray-800'
+                    }`}
                 >
                   My Orders
                 </button>
                 <button
                   onClick={() => setActiveTab('analytics')}
-                  className={`py-4 px-2 text-lg font-medium transition-all border-b-4 ${
-                    activeTab === 'analytics'
-                      ? 'border-black text-black'
-                      : 'border-transparent text-gray-500 hover:text-gray-800'
-                  }`}
+                  className={`py-4 px-2 text-lg font-medium transition-all border-b-4 ${activeTab === 'analytics'
+                    ? 'border-black text-black'
+                    : 'border-transparent text-gray-500 hover:text-gray-800'
+                    }`}
                 >
                   Revenue Analytics
                 </button>

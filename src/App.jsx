@@ -1,6 +1,6 @@
 // src/App.jsx
-import React from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 
 import MainLayout from "./components/layout/MainLayout";
 import AuthModal from "./components/auth/AuthModel";
@@ -9,7 +9,6 @@ import ToastWrapper from "./components/common/ToastWrapper";
 // Pages & Components
 import ProductDetails from "./pages/ProductDetails";
 import WishList from "./components/cartWishlist/WishList";
-import Dashboard from "./components/Dashboard";
 import OrderDashboard from "./pages/OrderDashboard";
 import Checkout from "./components/checkOut/Checkout";
 import UserCoupons from "./components/checkOut/UserCoupon";
@@ -22,6 +21,10 @@ import CreateCoupon from "./components/admin/CreateCoupon";
 
 import EmailVerification from "./components/EmailVerification";
 import NotFoundPage from "./components/common/NotFoundPage";
+import NotificationsPage from "./pages/NotificationsPage";
+import AnalyticsPage from "./pages/AnalyticsPage";
+import DashboardPage from "./pages/DashboardPage";
+import OwnerDashboard from "./pages/OwnerDashboard";
 
 // Route Guards
 import { useAuth } from "./context/AuthContext";
@@ -35,7 +38,14 @@ const ProtectedRoutes = ({ children, requireCart = false }) => {
   const { isAuthenticated, loading, hasChecked } = useAuth();
 
   if (loading && !hasChecked) return <Loading />;
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
+
+  if (!isAuthenticated) {
+    // Open login modal instead of navigating to /login
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'login' } }));
+    }, 100);
+    return <Navigate to="/" replace />;
+  }
 
   if (requireCart && cartService.length === 0) {
     return <Navigate to="/cart" replace />;
@@ -46,7 +56,14 @@ const ProtectedRoutes = ({ children, requireCart = false }) => {
 
 const OwnerRoutes = ({ children }) => {
   const { user, isAuthenticated } = useAuth();
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
+
+  if (!isAuthenticated) {
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'login' } }));
+    }, 100);
+    return <Navigate to="/" replace />;
+  }
+
   if (!user || user.role !== "owner") {
     toastService.error("Access denied. Owners only.");
     return <Navigate to="/" replace />;
@@ -56,7 +73,14 @@ const OwnerRoutes = ({ children }) => {
 
 const AdminRoutes = ({ children }) => {
   const { user, isAuthenticated } = useAuth();
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
+
+  if (!isAuthenticated) {
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'login' } }));
+    }, 100);
+    return <Navigate to="/" replace />;
+  }
+
   if (!user || user.role !== "admin") {
     toastService.error("Access denied. Admins only.");
     return <Navigate to="/" replace />;
@@ -66,7 +90,14 @@ const AdminRoutes = ({ children }) => {
 
 const AdminOwnerRoutes = ({ children }) => {
   const { user, isAuthenticated } = useAuth();
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
+
+  if (!isAuthenticated) {
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'login' } }));
+    }, 100);
+    return <Navigate to="/" replace />;
+  }
+
   if (!user || (user.role !== "admin" && user.role !== "owner")) {
     toastService.error("Access denied. Admins or Owners only.");
     return <Navigate to="/" replace />;
@@ -119,7 +150,7 @@ function App() {
           <Route
             path="/user-coupons"
             element={
-              <ProtectedRoutes requireCart={true}>
+              <ProtectedRoutes>
                 <UserCoupons />
               </ProtectedRoutes>
             }
@@ -142,10 +173,30 @@ function App() {
           />
 
           <Route
+            path="/notifications"
+            element={
+              <ProtectedRoutes>
+                <NotificationsPage />
+              </ProtectedRoutes>
+            }
+          />
+
+          <Route
+            path="/analytics"
+            element={
+              <ProtectedRoutes>
+                <AdminOwnerRoutes>
+                  <AnalyticsPage />
+                </AdminOwnerRoutes>
+              </ProtectedRoutes>
+            }
+          />
+
+          <Route
             path="/dashboard"
             element={
               <ProtectedRoutes>
-                <Dashboard />
+                <DashboardPage />
               </ProtectedRoutes>
             }
           />
@@ -155,6 +206,16 @@ function App() {
               <ProtectedRoutes>
                 <AdminOwnerRoutes>
                   <OrderDashboard />
+                </AdminOwnerRoutes>
+              </ProtectedRoutes>
+            }
+          />
+          <Route
+            path="/owner/dashboard"
+            element={
+              <ProtectedRoutes>
+                <AdminOwnerRoutes>
+                  <OwnerDashboard />
                 </AdminOwnerRoutes>
               </ProtectedRoutes>
             }

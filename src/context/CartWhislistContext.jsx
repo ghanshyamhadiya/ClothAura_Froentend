@@ -22,6 +22,8 @@ export const CartWishlistProvider = ({ children }) => {
   const [cart, setCart] = useState([]);
   const [wishlist, setWishlist] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [cartLoading, setCartLoading] = useState(false);
+  const [wishlistLoading, setWishlistLoading] = useState(false);
   const [error, setError] = useState(null);
 
   // Helper function to check if user is verified
@@ -30,12 +32,12 @@ export const CartWishlistProvider = ({ children }) => {
       toastService.error('Please login to continue');
       return false;
     }
-    
+
     if (!user?.isEmailVerified) {
       toastService.error('Please verify your email to add items to cart or wishlist');
       return false;
     }
-    
+
     return true;
   };
 
@@ -121,11 +123,17 @@ export const CartWishlistProvider = ({ children }) => {
     }
 
     try {
-      setLoading(true);
+      setCartLoading(true);
       setError(null);
       const response = await cartService.addToCart(productId, variantId, sizeId, quantity);
-      const cartData = await cartService.getCart();
-      setCart(cartData.cart || []);
+      // Use response if it contains cart data, otherwise optimistic update
+      if (response.cart) {
+        setCart(response.cart);
+      } else {
+        // Fetch fresh cart data
+        const cartData = await cartService.getCart();
+        setCart(cartData.cart || []);
+      }
       toastService.success('Item added to cart');
       return response;
     } catch (err) {
@@ -134,7 +142,7 @@ export const CartWishlistProvider = ({ children }) => {
       toastService.error(err.response?.data?.message || "Failed to add to cart");
       throw err;
     } finally {
-      setLoading(false);
+      setCartLoading(false);
     }
   };
 
@@ -145,7 +153,7 @@ export const CartWishlistProvider = ({ children }) => {
     }
 
     try {
-      setLoading(true);
+      setCartLoading(true);
       setError(null);
       await cartService.removeFromCart(itemId);
       setCart((prev) => prev.filter((item) => item._id !== itemId));
@@ -156,7 +164,7 @@ export const CartWishlistProvider = ({ children }) => {
       toastService.error(err.response?.data?.message || "Failed to remove from cart");
       throw err;
     } finally {
-      setLoading(false);
+      setCartLoading(false);
     }
   };
 
@@ -167,13 +175,17 @@ export const CartWishlistProvider = ({ children }) => {
     }
 
     try {
-      setLoading(true);
+      setCartLoading(true);
       setError(null);
-      
-      await cartService.updateCartQuantity(itemId, quantity);
-      const cartData = await cartService.getCart();
-      setCart(cartData.cart || []);
-      
+
+      const response = await cartService.updateCartQuantity(itemId, quantity);
+      if (response.cart) {
+        setCart(response.cart);
+      } else {
+        const cartData = await cartService.getCart();
+        setCart(cartData.cart || []);
+      }
+
     } catch (err) {
       console.error("Error updating cart quantity:", err);
       setError(err.response?.data?.message || "Failed to update quantity");
@@ -185,7 +197,7 @@ export const CartWishlistProvider = ({ children }) => {
       }
       throw err;
     } finally {
-      setLoading(false);
+      setCartLoading(false);
     }
   };
 
@@ -196,7 +208,7 @@ export const CartWishlistProvider = ({ children }) => {
     }
 
     try {
-      setLoading(true);
+      setCartLoading(true);
       setError(null);
       await cartService.clearCart();
       setCart([]);
@@ -207,7 +219,7 @@ export const CartWishlistProvider = ({ children }) => {
       toastService.error(err.response?.data?.message || "Failed to clear cart");
       throw err;
     } finally {
-      setLoading(false);
+      setCartLoading(false);
     }
   };
 
@@ -218,11 +230,15 @@ export const CartWishlistProvider = ({ children }) => {
     }
 
     try {
-      setLoading(true);
+      setWishlistLoading(true);
       setError(null);
-      await wishlistService.addToWishlist(productId);
-      const wishlistData = await wishlistService.getWishlist();
-      setWishlist(wishlistData.wishlist || []);
+      const response = await wishlistService.addToWishlist(productId);
+      if (response.wishlist) {
+        setWishlist(response.wishlist);
+      } else {
+        const wishlistData = await wishlistService.getWishlist();
+        setWishlist(wishlistData.wishlist || []);
+      }
       toastService.success('Item added to wishlist');
     } catch (err) {
       console.error("Error adding to wishlist:", err);
@@ -230,29 +246,68 @@ export const CartWishlistProvider = ({ children }) => {
       toastService.error(err.response?.data?.message || "Failed to add to wishlist");
       throw err;
     } finally {
-      setLoading(false);
+      setWishlistLoading(false);
     }
   };
 
-  const removeFromWishlist = async (productId) => {
+  const removeFromWishlist = async (productId, showToast = true) => {
     // Check verification before proceeding
     if (!checkUserVerification()) {
       return;
     }
 
     try {
-      setLoading(true);
+      setWishlistLoading(true);
       setError(null);
       await wishlistService.removeFromWishlist(productId);
       setWishlist((prev) => prev.filter((item) => item._id !== productId && item !== productId));
-      toastService.success('Item removed from wishlist');
+      if (showToast) {
+        toastService.success('Item removed from wishlist');
+      }
     } catch (err) {
       console.error("Error removing from wishlist:", err);
       setError(err.response?.data?.message || "Failed to remove from wishlist");
       toastService.error(err.response?.data?.message || "Failed to remove from wishlist");
       throw err;
     } finally {
-      setLoading(false);
+      setWishlistLoading(false);
+    }
+  };
+
+  // Move item from wishlist to cart in one smooth operation
+  const moveFromWishlistToCart = async (productId, variantId, sizeId, quantity = 1) => {
+    if (!checkUserVerification()) {
+      return;
+    }
+
+    try {
+      setCartLoading(true);
+      setError(null);
+
+      // Add to cart first
+      const response = await cartService.addToCart(productId, variantId, sizeId, quantity);
+      if (response.cart) {
+        setCart(response.cart);
+      } else {
+        const cartData = await cartService.getCart();
+        setCart(cartData.cart || []);
+      }
+
+      // Remove from wishlist (optimistically)
+      setWishlist((prev) => prev.filter((item) => item._id !== productId && item !== productId));
+
+      // Background remove from wishlist API (don't wait)
+      wishlistService.removeFromWishlist(productId).catch(console.error);
+
+      toastService.success('Item moved to cart');
+      return response;
+    } catch (err) {
+      console.error("Error moving to cart:", err);
+      setError(err.response?.data?.message || "Failed to add to cart");
+      toastService.error(err.response?.data?.message || "Failed to add to cart");
+      throw err;
+    } finally {
+      setCartLoading(false);
     }
   };
 
@@ -263,7 +318,8 @@ export const CartWishlistProvider = ({ children }) => {
     }
 
     try {
-      setLoading(true);
+      setCartLoading(true);
+      setWishlistLoading(true);
       setError(null);
       const response = await cartWishlistService.toggleCartWishlist(productId, currentLocation);
       await loadBothData();
@@ -273,7 +329,8 @@ export const CartWishlistProvider = ({ children }) => {
       setError(err.response?.data?.message || "Failed to move item");
       throw err;
     } finally {
-      setLoading(false);
+      setCartLoading(false);
+      setWishlistLoading(false);
     }
   };
 
@@ -320,6 +377,8 @@ export const CartWishlistProvider = ({ children }) => {
     cart,
     wishlist,
     loading,
+    cartLoading,
+    wishlistLoading,
     error,
     addToCart,
     removeFromCart,
@@ -327,6 +386,7 @@ export const CartWishlistProvider = ({ children }) => {
     clearCart,
     addToWishlist,
     removeFromWishlist,
+    moveFromWishlistToCart,
     toggleCartWishlist,
     isInCart,
     isInWishlist,
